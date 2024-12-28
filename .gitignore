@@ -1,9 +1,6 @@
 .DS_Store
 .idea/
 target/
-validation/
-resources/old/
-resources/conf/
 *.iml
 src/test/*
 src/main/java/com.jackwaudby.ldbcimplementations/clients/*

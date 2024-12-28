@@ -1,27 +1,24 @@
 package com.jackwaudby.ldbcimplementations.queryhandlers;
 
 import com.jackwaudby.ldbcimplementations.JanusGraphDb;
-import com.ldbc.driver.DbException;
-import com.ldbc.driver.OperationHandler;
-import com.ldbc.driver.ResultReporter;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcQuery7;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcQuery7Result;
+import org.ldbcouncil.snb.driver.DbException;
+import org.ldbcouncil.snb.driver.OperationHandler;
+import org.ldbcouncil.snb.driver.ResultReporter;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcQuery7;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcQuery7Result;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
 
 import static com.jackwaudby.ldbcimplementations.utils.HttpResponseToResultList.httpResponseToResultList;
 
 public class LdbcQuery7Handler implements OperationHandler<LdbcQuery7, JanusGraphDb.JanusGraphConnectionState> {
 
     @Override
-    public void executeOperation(LdbcQuery7 operation, JanusGraphDb.JanusGraphConnectionState dbConnectionState, ResultReporter resultReporter) throws DbException {
-
-        // TODO: Add transaction logic to query string
-        // TODO: Add transaction retry logic to response
-
-        long personId = operation.personId();
-        long limit = operation.limit();
+    public void executeOperation(org.ldbcouncil.snb.driver.workloads.interactive.LdbcQuery7 operation, JanusGraphDb.JanusGraphConnectionState dbConnectionState, ResultReporter resultReporter) throws DbException {
+        long personId = operation.getPersonIdQ7();
+        long limit = operation.getLimit();
 
         JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();   // janusgraph client
 
@@ -29,7 +26,7 @@ public class LdbcQuery7Handler implements OperationHandler<LdbcQuery7, JanusGrap
                 "g.V().has('Person','id'," + personId + ").in('hasCreator').as('message')." +
                 "order().by('creationDate',desc).by('id',asc)" +
                 "inE('likes').as('like')." +
-                "order().by('creationDate',desc).outV().as('person').dedup().limit("+limit+")" +
+                "order().by('creationDate',desc).outV().as('person').dedup().limit(" + limit + ")" +
                 "choose(both('knows').has('Person','id'," + personId + "),constant(false),constant(true)).as('isNew')." +
                 "select('person','message','isNew','like')." +
                 "by(valueMap('id','firstName','lastName'))." +
@@ -43,25 +40,25 @@ public class LdbcQuery7Handler implements OperationHandler<LdbcQuery7, JanusGrap
                 = httpResponseToResultList(response);
         ArrayList<LdbcQuery7Result> endResult                                   // init result list
                 = new ArrayList<>();
-        for (int i = 0; i < result.size(); i++) {                               // for each result
+        for (final Map<String, String> stringStringHashMap : result) {                               // for each result
             String messageContent;                                              // set message content
-            if (result.get(i).get("messageContent").equals("")) {               // imagefile
-                messageContent = result.get(i).get("messageImageFile");
+            if (stringStringHashMap.get("messageContent").isEmpty()) {               // imagefile
+                messageContent = stringStringHashMap.get("messageImageFile");
             } else {                                                            // content
-                messageContent = result.get(i).get("messageContent");
+                messageContent = stringStringHashMap.get("messageContent");
             }
-            long minutesLatency =
-                    (Long.parseLong(result.get(i).get("likeCreationDate")) -
-                    Long.parseLong(result.get(i).get("messageCreationDate"))) / 60000;
-            Integer latency = (int) (long) minutesLatency;
-            boolean isNew = Boolean.parseBoolean(result.get(i).get("isNew"));
+            final long minutesLatency =
+                    (Long.parseLong(stringStringHashMap.get("likeCreationDate")) -
+                            Long.parseLong(stringStringHashMap.get("messageCreationDate"))) / 60000;
+            final int latency = (int) minutesLatency;
+            final boolean isNew = Boolean.parseBoolean(stringStringHashMap.get("isNew"));
             LdbcQuery7Result res                                                // create result object
                     = new LdbcQuery7Result(
-                    Long.parseLong(result.get(i).get("personId")),              // personId
-                    result.get(i).get("personFirstName"),                       // personFirstName
-                    result.get(i).get("personLastName"),                        // personLastName
-                    Long.parseLong(result.get(i).get("likeCreationDate")),   // likeCreationDate
-                    Long.parseLong(result.get(i).get("messageId")),             // messageId
+                    Long.parseLong(stringStringHashMap.get("personId")),              // personId
+                    stringStringHashMap.get("personFirstName"),                       // personFirstName
+                    stringStringHashMap.get("personLastName"),                        // personLastName
+                    Long.parseLong(stringStringHashMap.get("likeCreationDate")),   // likeCreationDate
+                    Long.parseLong(stringStringHashMap.get("messageId")),             // messageId
                     messageContent,
                     latency,
                     isNew

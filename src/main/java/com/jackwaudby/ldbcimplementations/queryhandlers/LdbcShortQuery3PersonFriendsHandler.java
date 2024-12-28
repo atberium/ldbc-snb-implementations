@@ -1,43 +1,40 @@
 package com.jackwaudby.ldbcimplementations.queryhandlers;
 
 import com.jackwaudby.ldbcimplementations.JanusGraphDb;
-import com.ldbc.driver.DbException;
-import com.ldbc.driver.OperationHandler;
-import com.ldbc.driver.ResultReporter;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcShortQuery3PersonFriends;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcShortQuery3PersonFriendsResult;
-import org.apache.log4j.Logger;
+import lombok.extern.slf4j.Slf4j;
 import org.json.JSONObject;
+import org.ldbcouncil.snb.driver.DbException;
+import org.ldbcouncil.snb.driver.OperationHandler;
+import org.ldbcouncil.snb.driver.ResultReporter;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcShortQuery3PersonFriends;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcShortQuery3PersonFriendsResult;
 
 import java.util.ArrayList;
 
 import static com.jackwaudby.ldbcimplementations.utils.GremlinResponseParsers.*;
-import static com.jackwaudby.ldbcimplementations.utils.GremlinResponseParsers.gremlinMapToHashMap;
 import static com.jackwaudby.ldbcimplementations.utils.ImplementationConfiguration.getTxnAttempts;
 
 /**
  * Given a start Person, retrieve all of their friend's ID, firstName, lastName, and the date at which they became friends.
  */
+@Slf4j
+@SuppressWarnings("unused")
 public class LdbcShortQuery3PersonFriendsHandler implements OperationHandler<LdbcShortQuery3PersonFriends, JanusGraphDb.JanusGraphConnectionState> {
-
-    private static Logger LOGGER = Logger.getLogger(LdbcShortQuery3PersonFriendsHandler.class.getName());
-
-
     @Override
     public void executeOperation(LdbcShortQuery3PersonFriends operation, JanusGraphDb.JanusGraphConnectionState dbConnectionState, ResultReporter resultReporter) throws DbException {
 
-        long personId = operation.personId();                                   // start person id
-        JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();   // janusgraph client
+        long personId = operation.getPersonIdSQ3();
+        JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();
 
         String queryString = "{\"gremlin\": \"" +
                 "graph.tx().rollback();[];" +
                 "try{" +
                 "result = g.V().has('Person','id'," + personId + ").bothE('knows').as('friendshipCreationDate').otherV().as('friend')." +
-                  "order().by(select('friendshipCreationDate').by('creationDate'),desc)." +
-                    "by('id',asc).select('friendshipCreationDate','friend')." +
-                    "by(values('creationDate').fold()).by(valueMap('id','firstName','lastName')).toList();" +
-                "graph.tx().commit();[];"+
-                "} catch (Exception e) {"+
+                "order().by(select('friendshipCreationDate').by('creationDate'),desc)." +
+                "by('id',asc).select('friendshipCreationDate','friend')." +
+                "by(values('creationDate').fold()).by(valueMap('id','firstName','lastName')).toList();" +
+                "graph.tx().commit();[];" +
+                "} catch (Exception e) {" +
                 "errorMessage =[e.toString()];[];" +
                 "result=[error:errorMessage];" +
                 "graph.tx().rollback();[];" +
@@ -50,11 +47,11 @@ public class LdbcShortQuery3PersonFriendsHandler implements OperationHandler<Ldb
         int TX_RETRIES = getTxnAttempts();
 
         while (TX_ATTEMPTS < TX_RETRIES) {
-            LOGGER.info("Attempt " + (TX_ATTEMPTS + 1) + ": " + LdbcShortQuery3PersonFriendsHandler.class.getSimpleName());
+            log.info("Attempt " + (TX_ATTEMPTS + 1) + ": " + LdbcShortQuery3PersonFriendsHandler.class.getSimpleName());
             String response = client.execute(queryString);                                            // execute query
             ArrayList<JSONObject> results = gremlinResponseToResultArrayList(response);          // get result list
             if (gremlinMapToHashMap(results.get(0)).containsKey("error")) {
-                LOGGER.error(getPropertyValue(gremlinMapToHashMap(results.get(0)).get("error")));
+                log.error(getPropertyValue(gremlinMapToHashMap(results.get(0)).get("error")));
                 TX_ATTEMPTS = TX_ATTEMPTS + 1;
             } else {
                 ArrayList<LdbcShortQuery3PersonFriendsResult> queryResultList                   // init result list
@@ -82,4 +79,3 @@ public class LdbcShortQuery3PersonFriendsHandler implements OperationHandler<Ldb
         }
     }
 }
-

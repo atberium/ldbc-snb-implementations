@@ -1,16 +1,21 @@
 package com.jackwaudby.ldbcimplementations;
 
-import org.apache.log4j.Logger;
+import lombok.experimental.UtilityClass;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversalSource;
 import org.janusgraph.core.JanusGraph;
 import org.janusgraph.core.JanusGraphFactory;
 import org.janusgraph.core.schema.JanusGraphManagement;
+import org.slf4j.Logger;
 
 import java.util.HashMap;
+import java.util.Map;
 
 import static com.jackwaudby.ldbcimplementations.utils.BulkLoadEdges.bulkLoadEdges;
 import static com.jackwaudby.ldbcimplementations.utils.BulkLoadVertices.bulkLoadVertices;
 import static com.jackwaudby.ldbcimplementations.utils.CloseGraph.closeGraph;
+import static com.jackwaudby.ldbcimplementations.utils.JanusGraphUtils.getDataPath;
+import static com.jackwaudby.ldbcimplementations.utils.JanusGraphUtils.getPropertiesPath;
 import static com.jackwaudby.ldbcimplementations.utils.LoadIndexes.loadIndexes;
 import static com.jackwaudby.ldbcimplementations.utils.LoadSchema.loadSchema;
 import static com.jackwaudby.ldbcimplementations.utils.Reindex.reindex;
@@ -18,53 +23,49 @@ import static com.jackwaudby.ldbcimplementations.utils.Reindex.reindex;
 /**
  * This script creates embedded connection with JanusGraph and loads schema, indexes and data.
  */
+@Slf4j
+@UtilityClass
 public class CompleteLoader {
-
-    public static final Logger LOGGER = Logger.getLogger(CompleteLoader.class);
-
     public static void main(String[] args) {
+        log.info("Loading Configuration:");
 
-        LOGGER.info("Loading Configuration:");
-        String janusGraphHome = System.getenv("JANUSGRAPH_HOME");             // get JanusGraph home directory
-        String ldbcSnbDatagenHome = System.getenv("LDBC_SNB_DATAGEN_HOME");   // path to generated data directory
-        LOGGER.info("$JANUSGRAPH_HOME: " + janusGraphHome);
-        LOGGER.info("$LDBC_SNB_DATAGEN_HOME: " + ldbcSnbDatagenHome);
+        final String pathToData = getDataPath();
 
-        String pathToData = ldbcSnbDatagenHome + "/social_network/";                // path to data
+        final Map<String, Object> ldbcIdToJanusGraphId = new HashMap<>();
 
-        HashMap<String, Object> ldbcIdToJanusGraphId = new HashMap<>();             // id map
+        log.info("Opening JanusGraph connection");
+        final JanusGraph graph = JanusGraphFactory.open(getPropertiesPath());
 
-        LOGGER.info("Opening JanusGraph connection");
-        JanusGraph graph = JanusGraphFactory.open(janusGraphHome
-                + "/conf/janusgraph-berkeleyje-bulk.properties");                        // open connection to JanusGraph
+        log.info("Creating Graph Traversal Source");
+        final GraphTraversalSource g = graph.traversal();
 
-        LOGGER.info("Creating Graph Traversal Source");
-        GraphTraversalSource g = graph.traversal();                                 // create traversal source
-
-        LOGGER.info("Loading Schema");
+        log.info("Loading Schema");
         loadSchema(graph);
 
-        LOGGER.info("Loading Index");
+        log.info("Loading Index");
         loadIndexes(graph);
 
-        JanusGraphManagement schema = graph.openManagement();
-        LOGGER.info("Schema: \n" + schema.printSchema());
+        final JanusGraphManagement schema = graph.openManagement();
+        log.info("Schema: {}", schema.printSchema());
         schema.commit();
 
-        LOGGER.info("Loading Vertices");
-        bulkLoadVertices(pathToData,graph,g,ldbcIdToJanusGraphId);
+        log.info("Loading Vertices");
+        bulkLoadVertices(pathToData, graph, g, ldbcIdToJanusGraphId);
 
-        LOGGER.info("Loading Edges");
-        bulkLoadEdges(pathToData,graph,g,ldbcIdToJanusGraphId);
+        log.info("Loading Edges");
+        bulkLoadEdges(pathToData, graph, g, ldbcIdToJanusGraphId);
 
-        LOGGER.info("Reindex");
+        log.info("Reindex");
         reindex(graph);
 
-        LOGGER.info("Closing Graph Traversal Source");
+        log.info("Closing Graph Traversal Source");
         closeGraph(g);
 
-        LOGGER.info("Closing JanusGraph connection");
+        log.info("Closing JanusGraph connection");
         graph.close();
+    }
 
+    public static Logger getLogger() {
+        return log;
     }
 }

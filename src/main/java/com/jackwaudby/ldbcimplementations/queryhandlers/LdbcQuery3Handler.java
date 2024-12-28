@@ -1,29 +1,25 @@
 package com.jackwaudby.ldbcimplementations.queryhandlers;
 
 import com.jackwaudby.ldbcimplementations.JanusGraphDb;
-import com.ldbc.driver.DbException;
-import com.ldbc.driver.OperationHandler;
-import com.ldbc.driver.ResultReporter;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcQuery2;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcQuery3;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcQuery3Result;
 import org.json.JSONObject;
+import org.ldbcouncil.snb.driver.DbException;
+import org.ldbcouncil.snb.driver.OperationHandler;
+import org.ldbcouncil.snb.driver.ResultReporter;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcQuery3;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcQuery3Result;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 
 import static com.jackwaudby.ldbcimplementations.utils.GremlinResponseParsers.*;
-import static com.jackwaudby.ldbcimplementations.utils.GremlinResponseParsers.gremlinMapToHashMap;
-import static com.jackwaudby.ldbcimplementations.utils.HttpResponseToResultList.httpResponseToResultList;
 
 /**
  * Title: Friends and friends of friends that have been to countries X and Y
- *
+ * <p>
  * Description: Given a start Person, find Persons that are their friends and friends of friends
  * that have made Posts/Comments in both of the given Countries, X and Y, within a given period.
  * Only Persons that are foreign to Countries X and Y are considered, that is Persons whose
  * Location is not Country X or Country Y.
- *
+ * <p>
  * Return: PersonID, firstName, lastName, xCount, yCount, count. Sort by xCount (desc) and personID (asc)
  */
 public class LdbcQuery3Handler implements OperationHandler<LdbcQuery3, JanusGraphDb.JanusGraphConnectionState> {
@@ -31,38 +27,35 @@ public class LdbcQuery3Handler implements OperationHandler<LdbcQuery3, JanusGrap
     @Override
     public void executeOperation(LdbcQuery3 operation, JanusGraphDb.JanusGraphConnectionState dbConnectionState, ResultReporter resultReporter) throws DbException {
 
-        // TODO: Add transaction logic to query string
-        // TODO: Add transaction retry logic to response
-
-        long personId = operation.personId();
-        String countryX = operation.countryXName();
-        String countryY = operation.countryYName();
-        long startDate = operation.startDate().getTime();
-        long duration = operation.durationDays();
+        long personId = operation.getPersonIdQ3();
+        String countryX = operation.getCountryXName();
+        String countryY = operation.getCountryYName();
+        long startDate = operation.getStartDate().getTime();
+        long duration = operation.getDurationDays();
         long endDate = startDate + (duration * 86400000L);
         long limit = 20;
 
         JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();   // janusgraph client
 
         String queryString = "{\"gremlin\": \"" +                               // gremlin query string
-                "g.V().has('Person','id',"+personId+").repeat(both('knows').simplePath()).emit().times(2).dedup()." +
-                "where(and(out('isLocatedIn').out('isPartOf').has('name',without('"+countryX+"','"+countryY+"'))," +
-                "local(__.in('hasCreator').has('creationDate',between(new Date("+startDate+"),new Date("+endDate+")))." +
-                "out('isLocatedIn').has('name','"+countryX+"').count().is(gt(0)))," +
-                "local(__.in('hasCreator').has('creationDate',between(new Date("+startDate+"),new Date("+endDate+")))." +
-                "out('isLocatedIn').has('name','"+countryY+"').count().is(gt(0)))))." +
-                "order().by(__.in('hasCreator').has('creationDate',between(new Date("+startDate+"),new Date("+endDate+")))." +
-                "out('isLocatedIn').has('name','"+countryX+"').count(),desc).by('id',asc).limit("+limit+")." +
+                "g.V().has('Person','id'," + personId + ").repeat(both('knows').simplePath()).emit().times(2).dedup()." +
+                "where(and(out('isLocatedIn').out('isPartOf').has('name',without('" + countryX + "','" + countryY + "'))," +
+                "local(__.in('hasCreator').has('creationDate',between(new Date(" + startDate + "),new Date(" + endDate + ")))." +
+                "out('isLocatedIn').has('name','" + countryX + "').count().is(gt(0)))," +
+                "local(__.in('hasCreator').has('creationDate',between(new Date(" + startDate + "),new Date(" + endDate + ")))." +
+                "out('isLocatedIn').has('name','" + countryY + "').count().is(gt(0)))))." +
+                "order().by(__.in('hasCreator').has('creationDate',between(new Date(" + startDate + "),new Date(" + endDate + ")))." +
+                "out('isLocatedIn').has('name','" + countryX + "').count(),desc).by('id',asc).limit(" + limit + ")." +
                 "local(union(identity().valueMap('id','firstName','lastName').unfold(),__.in('hasCreator')." +
-                "has('creationDate',between(new Date("+startDate+"),new Date("+endDate+")))."+
-                "out('isLocatedIn').has('name',within('"+countryX+"','"+countryY+"')).group().by('name').by(count().fold()).unfold()).fold())" +
+                "has('creationDate',between(new Date(" + startDate + "),new Date(" + endDate + ")))." +
+                "out('isLocatedIn').has('name',within('" + countryX + "','" + countryY + "')).group().by('name').by(count().fold()).unfold()).fold())" +
                 "\"" +
                 "}";
         String response = client.execute(queryString);                          // execute query
         ArrayList<LdbcQuery3Result> endResult                                   // init result list
                 = new ArrayList<>();
         ArrayList<JSONObject> results = gremlinResponseToResultArrayList(response);
-        if (results.size() != 0) {
+        if (!results.isEmpty()) {
             for (JSONObject result : results) {
                 ArrayList<JSONObject> resultList = gremlinListToArrayList(result);
                 long countryXCount;

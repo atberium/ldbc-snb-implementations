@@ -1,5 +1,6 @@
 package com.jackwaudby.ldbcimplementations.utils;
 
+import lombok.experimental.UtilityClass;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -11,19 +12,21 @@ import java.util.HashMap;
  * This class includes a number of methods for parsing HTTP responses from the Gremlin Server.
  * They are written in a manner to allow composition.
  */
+@UtilityClass
 public class GremlinResponseParsers {
 
     /**
      * This method converts a Gremlin list into a Java ArrayList of JSONObjects.
+     *
      * @param list JSONObject containing a JSONArray (list)
      * @return ArrayList of JSONObjects
      */
-    static public ArrayList<JSONObject> gremlinListToArrayList (JSONObject list) {
+    static public ArrayList<JSONObject> gremlinListToArrayList(JSONObject list) {
 
         ArrayList<JSONObject> results = new ArrayList<>();
 
         JSONArray x = list.getJSONArray("@value");
-        for (int i = 0; i < x.length();i++){
+        for (int i = 0; i < x.length(); i++) {
             results.add(x.getJSONObject(i));
         }
         return results;
@@ -31,10 +34,11 @@ public class GremlinResponseParsers {
 
     /**
      * This method converts the initial HTTP response string into a Java ArrayList of JSONObjects.
+     *
      * @param response HTTP response string
      * @return ArrayList of JSON Objects
      */
-    static public ArrayList<JSONObject> gremlinResponseToResultArrayList (String response) {
+    static public ArrayList<JSONObject> gremlinResponseToResultArrayList(String response) {
 
         JSONObject responseJson = new JSONObject(response);             // HTTP response is JSONObject
         JSONArray resultList = responseJson.getJSONObject("result")     // Result list is stored in "data" JSONObject
@@ -51,10 +55,11 @@ public class GremlinResponseParsers {
 
     /**
      * This method converts a Gremlin map into a Java HashMap of String-JSONObject pairs
+     *
      * @param gremlinMap JSONObject containing a JSONArray (map)
      * @return HashMap with String key and JSONObject values
      */
-    static public HashMap<String,JSONObject> gremlinMapToHashMap (JSONObject gremlinMap) {
+    static public HashMap<String, JSONObject> gremlinMapToHashMap(JSONObject gremlinMap) {
 
         HashMap<String, JSONObject> result = new HashMap<>();
         if (gremlinMap.getString("@type").equals("g:Map")) {
@@ -73,6 +78,7 @@ public class GremlinResponseParsers {
 
     /**
      * This method extracts the value from a Gremlin key-value pair. This must be a list.
+     *
      * @param propertyValue JSONObject representing the value in a HashMap key-value pair
      * @return String representation of the value. Note, returns null if the JSONObject is not a list -
      * all property values are lists

@@ -1,11 +1,11 @@
 package com.jackwaudby.ldbcimplementations.queryhandlers;
 
 import com.jackwaudby.ldbcimplementations.JanusGraphDb;
-import com.ldbc.driver.DbException;
-import com.ldbc.driver.OperationHandler;
-import com.ldbc.driver.ResultReporter;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcNoResult;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcUpdate8AddFriendship;
+import org.ldbcouncil.snb.driver.DbException;
+import org.ldbcouncil.snb.driver.OperationHandler;
+import org.ldbcouncil.snb.driver.ResultReporter;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcNoResult;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcUpdate8AddFriendship;
 
 import java.util.HashMap;
 
@@ -16,9 +16,9 @@ public class LdbcUpdate8AddFriendshipHandler implements OperationHandler<LdbcUpd
     @Override
     public void executeOperation(LdbcUpdate8AddFriendship operation, JanusGraphDb.JanusGraphConnectionState dbConnectionState, ResultReporter resultReporter) throws DbException {
 
-        long person1Id = operation.person1Id();
-        long person2Id = operation.person2Id();
-        long creationDate = operation.creationDate().getTime();
+        long person1Id = operation.getPerson1Id();
+        long person2Id = operation.getPerson2Id();
+        long creationDate = operation.getCreationDate().getTime();
 
         // get JanusGraph client
         JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();

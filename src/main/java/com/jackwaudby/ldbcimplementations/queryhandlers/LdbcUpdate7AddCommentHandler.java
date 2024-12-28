@@ -1,11 +1,11 @@
 package com.jackwaudby.ldbcimplementations.queryhandlers;
 
 import com.jackwaudby.ldbcimplementations.JanusGraphDb;
-import com.ldbc.driver.DbException;
-import com.ldbc.driver.OperationHandler;
-import com.ldbc.driver.ResultReporter;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcNoResult;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcUpdate7AddComment;
+import org.ldbcouncil.snb.driver.DbException;
+import org.ldbcouncil.snb.driver.OperationHandler;
+import org.ldbcouncil.snb.driver.ResultReporter;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcNoResult;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcUpdate7AddComment;
 
 import java.util.HashMap;
 import java.util.List;
@@ -18,19 +18,19 @@ public class LdbcUpdate7AddCommentHandler implements OperationHandler<LdbcUpdate
     public void executeOperation(LdbcUpdate7AddComment operation, JanusGraphDb.JanusGraphConnectionState dbConnectionState, ResultReporter resultReporter) throws DbException {
 
         // comment properties
-        long commentId = operation.commentId();
-        long creationDate = operation.creationDate().getTime();
-        String locationIp = operation.locationIp();
-        String browserUsed = operation.browserUsed();
-        String content = operation.content();//.replaceAll("'","\'");
-        int length = operation.length();
+        long commentId = operation.getCommentId();
+        long creationDate = operation.getCreationDate().getTime();
+        String locationIp = operation.getLocationIp();
+        String browserUsed = operation.getBrowserUsed();
+        String content = operation.getContent();
+        int length = operation.getLength();
 
         // outgoing edges
-        long authorPersonId = operation.authorPersonId();
-        long countryId = operation.countryId();
-        long replyToPostId = operation.replyToPostId();
-        long replyToCommentId = operation.replyToCommentId();
-        List<Long> tagIds = operation.tagIds();
+        long authorPersonId = operation.getAuthorPersonId();
+        long countryId = operation.getCountryId();
+        long replyToPostId = operation.getReplyToPostId();
+        long replyToCommentId = operation.getReplyToCommentId();
+        List<Long> tagIds = operation.getTagIds();
 
         // get JanusGraph client
         JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();
@@ -59,7 +59,7 @@ public class LdbcUpdate7AddCommentHandler implements OperationHandler<LdbcUpdate
                 ").as('location').V(p).addE('isLocatedIn').to('location').next();[];" +
                 "tagid=" +
                 tagIds.toString() +
-                ";[];"+
+                ";[];" +
                 "for (item in tagid) { " +
                 "g.V().has('Tag', 'id', item).as('tag').V(p).addE('hasTag').to('tag').next();[];" +
                 "};" +
@@ -100,4 +100,3 @@ public class LdbcUpdate7AddCommentHandler implements OperationHandler<LdbcUpdate
         resultReporter.report(0, LdbcNoResult.INSTANCE, operation); // pass result to driver
     }
 }
-

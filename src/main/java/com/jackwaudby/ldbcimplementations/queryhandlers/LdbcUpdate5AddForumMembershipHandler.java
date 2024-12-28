@@ -1,12 +1,11 @@
 package com.jackwaudby.ldbcimplementations.queryhandlers;
 
 import com.jackwaudby.ldbcimplementations.JanusGraphDb;
-import com.ldbc.driver.DbException;
-import com.ldbc.driver.OperationHandler;
-import com.ldbc.driver.ResultReporter;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcNoResult;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcUpdate5AddForumMembership;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcUpdate8AddFriendship;
+import org.ldbcouncil.snb.driver.DbException;
+import org.ldbcouncil.snb.driver.OperationHandler;
+import org.ldbcouncil.snb.driver.ResultReporter;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcNoResult;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcUpdate5AddForumMembership;
 
 import java.util.HashMap;
 
@@ -17,9 +16,9 @@ public class LdbcUpdate5AddForumMembershipHandler implements OperationHandler<Ld
     @Override
     public void executeOperation(LdbcUpdate5AddForumMembership operation, JanusGraphDb.JanusGraphConnectionState dbConnectionState, ResultReporter resultReporter) throws DbException {
 
-        long personId = operation.personId();
-        long forumId = operation.forumId();
-        long joinDate = operation.joinDate().getTime();
+        long personId = operation.getPersonId();
+        long forumId = operation.getForumId();
+        long joinDate = operation.getJoinDate().getTime();
 
         // get JanusGraph client
         JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();

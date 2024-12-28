@@ -1,34 +1,40 @@
 package com.jackwaudby.ldbcimplementations.utils;
 
-import org.apache.log4j.Logger;
+import lombok.experimental.UtilityClass;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversalSource;
 import org.janusgraph.core.JanusGraph;
 import org.janusgraph.core.JanusGraphFactory;
 
+import static com.jackwaudby.ldbcimplementations.utils.CloseGraph.closeGraph;
+import static com.jackwaudby.ldbcimplementations.utils.GraphStats.elementCount;
+import static com.jackwaudby.ldbcimplementations.utils.JanusGraphUtils.getPropertiesPath;
+import static java.lang.System.exit;
+
 /**
  * This script drops a graph.
  */
+@Slf4j
+@UtilityClass
 public class DeleteGraph {
 
-    private static Logger LOGGER = Logger.getLogger(DeleteGraph.class);
+    public static void main(String[] args) {
 
-    public static void main( String[] args ) {
+        final JanusGraph graph = JanusGraphFactory.open(getPropertiesPath());
+        final GraphTraversalSource g = graph.traversal();
 
-        JanusGraph graph = JanusGraphFactory.open("/Users/jackwaudby/janusgraph-0.4.0-hadoop2/conf/janusgraph-berkeleyje.properties");
-        GraphTraversalSource g = graph.traversal(); // create traversal source
+        elementCount(g);                 // get stats
+        log.info("Dropping Graph");
 
-        GraphStats.elementCount(g);                 // get stats
-        LOGGER.info("Dropping Graph");
         g.V().drop().iterate();                     // drop graph
         graph.tx().commit();                        // commit changes
-        LOGGER.info("Graph Dropped");
-        GraphStats.elementCount(g);                 // get stats
-        CloseGraph.closeGraph(g);                   // close graph
-        System.exit(0);                      // close program
+
+        log.info("Graph Dropped");
+
+        elementCount(g);                 // get stats
+        closeGraph(g);                   // close graph
+        exit(0);                      // close program
     }
 
 
-
 }
-
-

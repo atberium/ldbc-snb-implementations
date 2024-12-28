@@ -1,15 +1,12 @@
 package com.jackwaudby.ldbcimplementations.queryhandlers;
 
 import com.jackwaudby.ldbcimplementations.JanusGraphDb;
-import com.ldbc.driver.DbException;
-import com.ldbc.driver.OperationHandler;
-import com.ldbc.driver.ResultReporter;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcNoResult;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcUpdate2AddPostLike;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcUpdate3AddCommentLike;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcUpdate5AddForumMembership;
+import org.ldbcouncil.snb.driver.DbException;
+import org.ldbcouncil.snb.driver.OperationHandler;
+import org.ldbcouncil.snb.driver.ResultReporter;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcNoResult;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcUpdate2AddPostLike;
 
-import java.util.Date;
 import java.util.HashMap;
 
 import static com.jackwaudby.ldbcimplementations.utils.HttpResponseToResultMap.httpResponseToResultMap;
@@ -20,10 +17,9 @@ public class LdbcUpdate2AddPostLikeHandler implements OperationHandler<LdbcUpdat
     public void executeOperation(LdbcUpdate2AddPostLike operation, JanusGraphDb.JanusGraphConnectionState dbConnectionState, ResultReporter resultReporter) throws DbException {
 
 
-
-        long personId = operation.personId();
-        long postId = operation.postId();
-        long creationDate = operation.creationDate().getTime();
+        long personId = operation.getPersonId();
+        long postId = operation.getPostId();
+        long creationDate = operation.getCreationDate().getTime();
 
         // get JanusGraph client
         JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();

@@ -1,23 +1,25 @@
 package com.jackwaudby.ldbcimplementations.utils;
 
 import com.jackwaudby.ldbcimplementations.CompleteLoader;
+import lombok.experimental.UtilityClass;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.janusgraph.core.JanusGraph;
 import org.janusgraph.core.SchemaViolationException;
 import org.janusgraph.core.schema.JanusGraphManagement;
 
+@UtilityClass
 public class LoadIndexes {
 
     /**
      * Loads indexes
+     *
      * @param graph JanusGraph instance
      */
-    public static void loadIndexes (JanusGraph graph) {
+    public static void loadIndexes(JanusGraph graph) {
 
-        JanusGraphManagement mgmt = graph.openManagement(); // create management object
+        final JanusGraphManagement mgmt = graph.openManagement();
 
         try {
-            // define graph indexes
             mgmt.buildIndex("byPlaceId", Vertex.class).addKey(mgmt.getPropertyKey("id")).indexOnly(mgmt.getVertexLabel("Place")).unique().buildCompositeIndex();
             mgmt.buildIndex("byCommentId", Vertex.class).addKey(mgmt.getPropertyKey("id")).indexOnly(mgmt.getVertexLabel("Comment")).unique().buildCompositeIndex();
             mgmt.buildIndex("byOrganisationId", Vertex.class).addKey(mgmt.getPropertyKey("id")).indexOnly(mgmt.getVertexLabel("Organisation")).unique().buildCompositeIndex();
@@ -27,12 +29,10 @@ public class LoadIndexes {
             mgmt.buildIndex("byTagId", Vertex.class).addKey(mgmt.getPropertyKey("id")).indexOnly(mgmt.getVertexLabel("Tag")).unique().buildCompositeIndex();
             mgmt.buildIndex("byTagClassId", Vertex.class).addKey(mgmt.getPropertyKey("id")).indexOnly(mgmt.getVertexLabel("TagClass")).unique().buildCompositeIndex();
 
-            // commit schema
             mgmt.commit();
 
-        } catch (
-                SchemaViolationException e) {
-            CompleteLoader.LOGGER.error("Indexes may already be defined: " + e);
+        } catch (SchemaViolationException e) {
+            CompleteLoader.getLogger().error("Indexes may already be defined", e);
         }
     }
 }

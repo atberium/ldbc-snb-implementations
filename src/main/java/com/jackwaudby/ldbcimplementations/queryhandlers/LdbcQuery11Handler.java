@@ -1,14 +1,15 @@
 package com.jackwaudby.ldbcimplementations.queryhandlers;
 
 import com.jackwaudby.ldbcimplementations.JanusGraphDb;
-import com.ldbc.driver.DbException;
-import com.ldbc.driver.OperationHandler;
-import com.ldbc.driver.ResultReporter;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcQuery11;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcQuery11Result;
+import org.ldbcouncil.snb.driver.DbException;
+import org.ldbcouncil.snb.driver.OperationHandler;
+import org.ldbcouncil.snb.driver.ResultReporter;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcQuery11;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcQuery11Result;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
 
 import static com.jackwaudby.ldbcimplementations.utils.HttpResponseToResultList.httpResponseToResultList;
 
@@ -20,29 +21,25 @@ public class LdbcQuery11Handler implements OperationHandler<LdbcQuery11, JanusGr
 
     @Override
     public void executeOperation(LdbcQuery11 operation, JanusGraphDb.JanusGraphConnectionState dbConnectionState, ResultReporter resultReporter) throws DbException {
-
-        // TODO: Add transaction logic to query string
-        // TODO: Add transaction retry logic to response
-
-        long personId = operation.personId();
-        String countryName = operation.countryName();
-        int workFromYear = operation.workFromYear();
+        long personId = operation.getPersonIdQ11();
+        String countryName = operation.getCountryName();
+        int workFromYear = operation.getWorkFromYear();
 
         JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();   // janusgraph client
 
         String queryString = "{\"gremlin\": \"" +                               // gremlin query string
-                "g.V().has('Person','id',"+personId+")." +
+                "g.V().has('Person','id'," + personId + ")." +
                 "repeat(both('knows').simplePath()).emit().times(2).dedup().as('person')." +
-                "outE('workAt').has('workFrom',lt("+workFromYear+")).as('organisationYear')." +
+                "outE('workAt').has('workFrom',lt(" + workFromYear + ")).as('organisationYear')." +
                 "inV().as('organisation')." +
-                "out('isLocatedIn').has('name','"+countryName+"')." +
+                "out('isLocatedIn').has('name','" + countryName + "')." +
                 "order()." +
-                    "by(select('organisationYear').by('workFrom'))." +
-                    "by(select('person').by('id'))." +
-                    "by(select('organisation').by('name'),desc)." +
+                "by(select('organisationYear').by('workFrom'))." +
+                "by(select('person').by('id'))." +
+                "by(select('organisation').by('name'),desc)." +
                 "select('person','organisation','organisationYear')." +
-                    "by(valueMap('id','firstName','lastName'))." +
-                    "by(valueMap('name')).by(valueMap('workFrom'))" +
+                "by(valueMap('id','firstName','lastName'))." +
+                "by(valueMap('name')).by(valueMap('workFrom'))" +
                 "\"" +
                 "}";
         String response = client.execute(queryString);                          // execute query
@@ -50,18 +47,17 @@ public class LdbcQuery11Handler implements OperationHandler<LdbcQuery11, JanusGr
                 = httpResponseToResultList(response);
         ArrayList<LdbcQuery11Result> endResult                                   // init result list
                 = new ArrayList<>();
-        for (int i = 0; i < result.size(); i++) {                               // for each result
+        for (final Map<String, String> stringStringHashMap : result) {
             LdbcQuery11Result res                                                // create result object
                     = new LdbcQuery11Result(
-                    Long.parseLong(result.get(i).get("personId")),              // personId
-                    result.get(i).get("personFirstName"),                       // personFirstName
-                    result.get(i).get("personLastName"),                        // personLastName
-                    result.get(i).get("organisationName"),
-                    Integer.parseInt(result.get(i).get("organisationYearWorkFrom"))
+                    Long.parseLong(stringStringHashMap.get("personId")),              // personId
+                    stringStringHashMap.get("personFirstName"),                       // personFirstName
+                    stringStringHashMap.get("personLastName"),                        // personLastName
+                    stringStringHashMap.get("organisationName"),
+                    Integer.parseInt(stringStringHashMap.get("organisationYearWorkFrom"))
             );
             endResult.add(res);                                                 // add to result list
         }
         resultReporter.report(0, endResult, operation);
     }
 }
-

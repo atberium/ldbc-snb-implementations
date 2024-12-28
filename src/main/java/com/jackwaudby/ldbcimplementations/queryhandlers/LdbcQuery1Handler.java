@@ -1,12 +1,12 @@
 package com.jackwaudby.ldbcimplementations.queryhandlers;
 
 import com.jackwaudby.ldbcimplementations.JanusGraphDb;
-import com.ldbc.driver.DbException;
-import com.ldbc.driver.OperationHandler;
-import com.ldbc.driver.ResultReporter;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcQuery1;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcQuery1Result;
 import org.json.JSONObject;
+import org.ldbcouncil.snb.driver.DbException;
+import org.ldbcouncil.snb.driver.OperationHandler;
+import org.ldbcouncil.snb.driver.ResultReporter;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcQuery1;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcQuery1Result;
 
 import java.util.*;
 
@@ -14,7 +14,7 @@ import static com.jackwaudby.ldbcimplementations.utils.GremlinResponseParsers.*;
 
 /**
  * Title: Friends with certain name
- *
+ * <p>
  * Description: Given a start Person, find Persons with a given first name that the start Person is connected to
  * (excluding start Person) by at most 3 steps via Knows relationships. Return Persons, including the distance (1..3),
  * summaries of the Persons workplaces and places of study; sorted by distanceFromPerson (asc),
@@ -24,21 +24,17 @@ public class LdbcQuery1Handler implements OperationHandler<LdbcQuery1, JanusGrap
 
     @Override
     public void executeOperation(LdbcQuery1 operation, JanusGraphDb.JanusGraphConnectionState dbConnectionState, ResultReporter resultReporter) throws DbException {
-
-        // TODO: Add transaction logic to query string
-        // TODO: Add transaction retry logic to response
-
-        long personId = operation.personId();                       // person ID
-        String personFirstName = operation.firstName();             // person first name
-        int limit = operation.limit();                              // result limit
+        long personId = operation.getPersonIdQ1();                       // person ID
+        String personFirstName = operation.getFirstName();             // person first name
+        int limit = operation.getLimit();                              // result limit
 
         JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();   // janusgraph client
 
         String queryString = "{\"gremlin\": \"" +                               // gremlin query string
-                "g.withSack(0).V().has('Person','id',"+personId+")." +
+                "g.withSack(0).V().has('Person','id'," + personId + ")." +
                 "repeat(both('knows').simplePath().sack(sum).by(constant(1))).emit().times(3)." +
-                "dedup().has('Person','firstName','"+personFirstName+"')." +
-                "order().by(sack(),asc).by('lastName',asc).by('id',asc).limit("+limit+")" +
+                "dedup().has('Person','firstName','" + personFirstName + "')." +
+                "order().by(sack(),asc).by('lastName',asc).by('id',asc).limit(" + limit + ")" +
                 "local(union(" +
                 "valueMap('lastName','id','email','birthday','creationDate','gender','browserUsed','locationIP','language'), " +
                 "out('isLocatedIn').valueMap('name')," +
@@ -57,54 +53,58 @@ public class LdbcQuery1Handler implements OperationHandler<LdbcQuery1, JanusGrap
         for (JSONObject result : resultList) {                                  // for each result
 
             ArrayList<JSONObject> resultBreakdown = gremlinListToArrayList(result);             // result contains sub results
-            HashMap<String,JSONObject> person = gremlinMapToHashMap(resultBreakdown.get(0));    // person result
-            HashMap<String,JSONObject> city = gremlinMapToHashMap(resultBreakdown.get(1));      // city result
+            HashMap<String, JSONObject> person = gremlinMapToHashMap(resultBreakdown.get(0));    // person result
+            HashMap<String, JSONObject> city = gremlinMapToHashMap(resultBreakdown.get(1));      // city result
             int distanceFrom = Integer.parseInt(getPropertyValue(resultBreakdown.get(2)));      // distance result
             String emails = getPropertyValue(person.get("email"));                              // email result
             List<String> emailList =
                     Arrays.asList(
                             emails.replaceAll("[\\[\\]\\s+]", "").split(","));
-            if (emailList.size() == 1 && emailList.get(0).equals("")) {
+            if (emailList.size() == 1 && emailList.get(0).isEmpty()) {
                 emailList = new ArrayList<>();
             }
             String speaks = getPropertyValue(person.get("language"));                             // speaks result
             List<String> speaksList = Arrays.asList(
                     speaks.replaceAll("[\\[\\]\\s+]", "").split(","));
 
-            ArrayList<JSONObject> universities = gremlinListToArrayList(resultBreakdown.get(4)); // university result
-            ArrayList<List<Object>> universitiesResult = new ArrayList<>(); // universities
-            if (universities.size() != 0) {
+            final List<JSONObject> universities = gremlinListToArrayList(resultBreakdown.get(4));
+            final List<LdbcQuery1Result.Organization> universitiesResult = new ArrayList<>();
+
+            if (!universities.isEmpty()) {
                 for (JSONObject u : universities) { // foreach uni
-                    HashMap<String, JSONObject> university = gremlinMapToHashMap(u);
-                    ArrayList<Object> universityResult = new ArrayList<>();
-                    Object countryName =
-                            getPropertyValue(gremlinMapToHashMap(university.get("country")).get("name"));
-                    Object universityName =
-                            getPropertyValue(gremlinMapToHashMap(university.get("university")).get("name"));
-                    Integer classYear =
-                            Integer.parseInt(gremlinMapToHashMap(university.get("studyFrom")).get("classYear").get("@value").toString());
-                    universityResult.add(universityName);
-                    universityResult.add(classYear);
-                    universityResult.add(countryName);
-                    universitiesResult.add(universityResult);
+                    final Map<String, JSONObject> universityMap = gremlinMapToHashMap(u);
+                    final String countryName =
+                            getPropertyValue(gremlinMapToHashMap(universityMap.get("country")).get("name"));
+                    final String universityName =
+                            getPropertyValue(gremlinMapToHashMap(universityMap.get("university")).get("name"));
+                    final int classYear =
+                            Integer.parseInt(gremlinMapToHashMap(universityMap.get("studyFrom")).get("classYear").get("@value").toString());
+
+                    universitiesResult.add(new LdbcQuery1Result.Organization(
+                            universityName,
+                            classYear,
+                            countryName
+                    ));
                 }
             }
 
-            ArrayList<JSONObject> companies = gremlinListToArrayList(resultBreakdown.get(3));
-            ArrayList<List<Object>> companiesResult = new ArrayList<>();
+            final List<JSONObject> companies = gremlinListToArrayList(resultBreakdown.get(3));
+            final List<LdbcQuery1Result.Organization> companiesResult = new ArrayList<>();
 
-            if (companies.size() != 0) {
+            if (!companies.isEmpty()) {
                 for (JSONObject u : companies) {
-                    HashMap<String, JSONObject> company = gremlinMapToHashMap(u);
-                    ArrayList<Object> companyResult = new ArrayList<>();
-                    Object countryName = getPropertyValue(gremlinMapToHashMap(company.get("country")).get("name"));
-                    Object companyName = getPropertyValue(gremlinMapToHashMap(company.get("company")).get("name"));
-                    Integer workFrom = Integer.parseInt(
-                            gremlinMapToHashMap(company.get("workFrom")).get("workFrom").get("@value").toString());
-                    companyResult.add(companyName);
-                    companyResult.add(workFrom);
-                    companyResult.add(countryName);
-                    companiesResult.add(companyResult);
+                    final Map<String, JSONObject> companyMap = gremlinMapToHashMap(u);
+
+                    final String countryName = getPropertyValue(gremlinMapToHashMap(companyMap.get("country")).get("name"));
+                    final String companyName = getPropertyValue(gremlinMapToHashMap(companyMap.get("company")).get("name"));
+                    int workFrom = Integer.parseInt(
+                            gremlinMapToHashMap(companyMap.get("workFrom")).get("workFrom").get("@value").toString());
+
+                    companiesResult.add(new LdbcQuery1Result.Organization(
+                            companyName,
+                            workFrom,
+                            countryName
+                    ));
                 }
             }
 

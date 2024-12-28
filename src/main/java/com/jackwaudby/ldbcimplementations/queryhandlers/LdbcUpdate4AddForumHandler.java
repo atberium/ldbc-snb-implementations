@@ -1,11 +1,11 @@
 package com.jackwaudby.ldbcimplementations.queryhandlers;
 
 import com.jackwaudby.ldbcimplementations.JanusGraphDb;
-import com.ldbc.driver.DbException;
-import com.ldbc.driver.OperationHandler;
-import com.ldbc.driver.ResultReporter;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcNoResult;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcUpdate4AddForum;
+import org.ldbcouncil.snb.driver.DbException;
+import org.ldbcouncil.snb.driver.OperationHandler;
+import org.ldbcouncil.snb.driver.ResultReporter;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcNoResult;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcUpdate4AddForum;
 
 import java.util.HashMap;
 import java.util.List;
@@ -17,11 +17,11 @@ public class LdbcUpdate4AddForumHandler implements OperationHandler<LdbcUpdate4A
     @Override
     public void executeOperation(LdbcUpdate4AddForum operation, JanusGraphDb.JanusGraphConnectionState dbConnectionState, ResultReporter resultReporter) throws DbException {
 
-        long forumId = operation.forumId();
-        String forumTitle = operation.forumTitle();
-        long forumCreationDate = operation.creationDate().getTime();
-        long moderatorId = operation.moderatorPersonId();
-        List<Long> tagIds = operation.tagIds();
+        long forumId = operation.getForumId();
+        String forumTitle = operation.getForumTitle();
+        long forumCreationDate = operation.getCreationDate().getTime();
+        long moderatorId = operation.getModeratorPersonId();
+        List<Long> tagIds = operation.getTagIds();
 
         // get JanusGraph client
         JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();
@@ -30,9 +30,9 @@ public class LdbcUpdate4AddForumHandler implements OperationHandler<LdbcUpdate4A
                 "p = g.addV('Forum')" +
                 ".property('id'," + forumId + ")" +
                 ".property('title','" + forumTitle + "')" +
-                ".property('creationDate','" + forumCreationDate  + "').next();[];" +
-                "g.V().has('Person', 'id',"+ moderatorId +").as('person').V(p).addE('hasModerator').to('person').next();[];" +
-                "tagid=" + tagIds.toString() + ";[];"+
+                ".property('creationDate','" + forumCreationDate + "').next();[];" +
+                "g.V().has('Person', 'id'," + moderatorId + ").as('person').V(p).addE('hasModerator').to('person').next();[];" +
+                "tagid=" + tagIds.toString() + ";[];" +
                 "for (item in tagid) { " +
                 "g.V().has('Tag', 'id', item).as('tag').V(p).addE('hasTag').to('tag').next();[];" +
                 "};" +

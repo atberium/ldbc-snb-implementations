@@ -1,17 +1,15 @@
 package com.jackwaudby.ldbcimplementations.utils;
 
-import com.jackwaudby.ldbcimplementations.JanusGraphDb;
+import lombok.experimental.UtilityClass;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import javax.json.Json;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Map;
 
+@UtilityClass
 public class HttpResponseToResultList {
-
 
 
     // Multiple results stored in a list, each list contains a map (path element key=path element value),
@@ -34,8 +32,8 @@ public class HttpResponseToResultList {
                 String pathElementKey = result.get(j).toString();                       // get path element key
                 j = j + 1;
 
-                    JSONArray pathElementValue =
-                            result.getJSONObject(j).getJSONArray("@value");             // get path element value
+                JSONArray pathElementValue =
+                        result.getJSONObject(j).getJSONArray("@value");             // get path element value
                 if (pathElementValue.length() == 1) { // catches the case when an element in the path only returns a boolean
                     String propertyValue = String.valueOf(pathElementValue.getBoolean(0));
                     propertyPair.put(pathElementKey, propertyValue);
@@ -59,7 +57,8 @@ public class HttpResponseToResultList {
                             propertyPair.put(propertyKey, propertyValue);                        // put in hashmap
                         }
 
-                    } catch (JSONException e) {                                                  // if path element is an edge
+                    } catch (
+                            JSONException e) {                                                  // if path element is an edge
                         for (int k = 0; k < pathElementValue.length(); k++) {                    // for each property in path element value
                             String propertyKey = pathElementValue.get(k).toString();             // get property key
                             propertyKey = pathElementKey +                                       // append element name to property key

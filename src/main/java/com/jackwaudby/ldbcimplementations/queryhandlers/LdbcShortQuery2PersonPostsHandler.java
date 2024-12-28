@@ -1,18 +1,17 @@
 package com.jackwaudby.ldbcimplementations.queryhandlers;
 
 import com.jackwaudby.ldbcimplementations.JanusGraphDb;
-import com.ldbc.driver.DbException;
-import com.ldbc.driver.OperationHandler;
-import com.ldbc.driver.ResultReporter;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcShortQuery2PersonPosts;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcShortQuery2PersonPostsResult;
-import org.apache.log4j.Logger;
+import lombok.extern.slf4j.Slf4j;
 import org.json.JSONObject;
+import org.ldbcouncil.snb.driver.DbException;
+import org.ldbcouncil.snb.driver.OperationHandler;
+import org.ldbcouncil.snb.driver.ResultReporter;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcShortQuery2PersonPosts;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcShortQuery2PersonPostsResult;
 
 import java.util.ArrayList;
 
 import static com.jackwaudby.ldbcimplementations.utils.GremlinResponseParsers.*;
-import static com.jackwaudby.ldbcimplementations.utils.GremlinResponseParsers.gremlinMapToHashMap;
 import static com.jackwaudby.ldbcimplementations.utils.ImplementationConfiguration.getTxnAttempts;
 
 /**
@@ -21,16 +20,15 @@ import static com.jackwaudby.ldbcimplementations.utils.ImplementationConfigurati
  * Then return the ID of the original post from its conversation and the author of that post, ID, firstName and lastName.
  * If the message is a post then the original post will be the same message.
  */
+@Slf4j
+@SuppressWarnings("unused")
 public class LdbcShortQuery2PersonPostsHandler implements OperationHandler<LdbcShortQuery2PersonPosts, JanusGraphDb.JanusGraphConnectionState> {
-
-    private static Logger LOGGER = Logger.getLogger(LdbcShortQuery2PersonPostsHandler.class.getName());
-
     @Override
     public void executeOperation(LdbcShortQuery2PersonPosts operation, JanusGraphDb.JanusGraphConnectionState dbConnectionState, ResultReporter resultReporter) throws DbException {
 
 
-        long limit = operation.limit();                                         // message limit
-        long personId = operation.personId();                                   // start person
+        long limit = operation.getLimit();                                         // message limit
+        long personId = operation.getPersonIdSQ2();                                   // start person
 
         JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();   // janusgraph client
 
@@ -38,8 +36,8 @@ public class LdbcShortQuery2PersonPostsHandler implements OperationHandler<LdbcS
                 "graph.tx().rollback();[];" +
                 "try{" +
                 "result = " +
-                "g.V().has('Person','id',"+personId+").in('hasCreator')." +
-                "order().by('creationDate',decr).by('id',decr).limit("+limit+").as('message')." +
+                "g.V().has('Person','id'," + personId + ").in('hasCreator')." +
+                "order().by('creationDate',decr).by('id',decr).limit(" + limit + ").as('message')." +
                 "local(choose(" +
                 "hasLabel('Post')," +
                 "identity().as('originalPost').out('hasCreator').as('originalAuthor')," +
@@ -48,8 +46,8 @@ public class LdbcShortQuery2PersonPostsHandler implements OperationHandler<LdbcS
                 "by(valueMap('id','imageFile','content','creationDate'))." +
                 "by(valueMap('id'))." +
                 "by(valueMap('id','firstName','lastName')).toList();" +
-                "graph.tx().commit();[];"+
-                "} catch (Exception e) {"+
+                "graph.tx().commit();[];" +
+                "} catch (Exception e) {" +
                 "errorMessage =[e.toString()];[];" +
                 "result=[error:errorMessage];" +
                 "graph.tx().rollback();[];" +
@@ -59,16 +57,15 @@ public class LdbcShortQuery2PersonPostsHandler implements OperationHandler<LdbcS
                 "}";
 
 
-
         int TX_ATTEMPTS = 0;                                                                 // init. transaction attempts
         int TX_RETRIES = getTxnAttempts();
 
         while (TX_ATTEMPTS < TX_RETRIES) {
-            LOGGER.info("Attempt " + (TX_ATTEMPTS + 1) + ": " + LdbcShortQuery2PersonPostsHandler.class.getSimpleName());
+            log.info("Attempt " + (TX_ATTEMPTS + 1) + ": " + LdbcShortQuery2PersonPostsHandler.class.getSimpleName());
             String response = client.execute(queryString);                                            // execute query
             ArrayList<JSONObject> results = gremlinResponseToResultArrayList(response);          // get result list
             if (gremlinMapToHashMap(results.get(0)).containsKey("error")) {
-                LOGGER.error(getPropertyValue(gremlinMapToHashMap(results.get(0)).get("error")));
+                log.error(getPropertyValue(gremlinMapToHashMap(results.get(0)).get("error")));
                 TX_ATTEMPTS = TX_ATTEMPTS + 1;
             } else {
                 ArrayList<LdbcShortQuery2PersonPostsResult> queryResultList                   // init result list
@@ -81,10 +78,10 @@ public class LdbcShortQuery2PersonPostsHandler implements OperationHandler<LdbcS
                     long messageCreationDate = Long.parseLong(getPropertyValue(gremlinMapToHashMap(message).get("creationDate")));
                     String messageContent;
                     if (gremlinMapToHashMap(message).containsKey("imageFile") &&
-                            !getPropertyValue(gremlinMapToHashMap(message).get("imageFile")).equals("")) {
-                         messageContent = getPropertyValue(gremlinMapToHashMap(message).get("imageFile"));
+                            !getPropertyValue(gremlinMapToHashMap(message).get("imageFile")).isEmpty()) {
+                        messageContent = getPropertyValue(gremlinMapToHashMap(message).get("imageFile"));
                     } else {
-                         messageContent = getPropertyValue(gremlinMapToHashMap(message).get("content"));
+                        messageContent = getPropertyValue(gremlinMapToHashMap(message).get("content"));
                     }
 
                     JSONObject originalPost = gremlinMapToHashMap(result).get("originalPost");
