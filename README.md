@@ -83,4 +83,4 @@ Issues:
   the Cypher query used to generate the validation set.
 + My `LdbcQuery12` is not ordering by `personId`.
 + Implementation of `LdbcQuery14` does not handle the case when there are multiple shortest paths.
-+ Problem with `LdbcShortQuery2PersonPosts` and `LdbcShortQuery7MessageReplies` not returning results.
++ Problem with `LdbcShortQuery7MessageReplies` not returning results.

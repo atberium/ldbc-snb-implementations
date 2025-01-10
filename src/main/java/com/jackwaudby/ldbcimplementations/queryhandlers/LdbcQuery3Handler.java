@@ -1,16 +1,20 @@
 package com.jackwaudby.ldbcimplementations.queryhandlers;
 
 import com.jackwaudby.ldbcimplementations.JanusGraphDb;
-import org.json.JSONObject;
+import lombok.NonNull;
 import org.ldbcouncil.snb.driver.DbException;
 import org.ldbcouncil.snb.driver.OperationHandler;
 import org.ldbcouncil.snb.driver.ResultReporter;
 import org.ldbcouncil.snb.driver.workloads.interactive.LdbcQuery3;
 import org.ldbcouncil.snb.driver.workloads.interactive.LdbcQuery3Result;
 
-import java.util.ArrayList;
+import java.util.List;
 
 import static com.jackwaudby.ldbcimplementations.utils.GremlinResponseParsers.*;
+import static java.lang.Long.parseLong;
+import static java.util.Objects.requireNonNull;
+import static java.util.Optional.ofNullable;
+import static java.util.stream.Collectors.toList;
 
 /**
  * Title: Friends and friends of friends that have been to countries X and Y
@@ -22,23 +26,34 @@ import static com.jackwaudby.ldbcimplementations.utils.GremlinResponseParsers.*;
  * <p>
  * Return: PersonID, firstName, lastName, xCount, yCount, count. Sort by xCount (desc) and personID (asc)
  */
-public class LdbcQuery3Handler implements OperationHandler<LdbcQuery3, JanusGraphDb.JanusGraphConnectionState> {
+public class LdbcQuery3Handler extends GremlinHandler implements OperationHandler<LdbcQuery3, JanusGraphDb.JanusGraphConnectionState> {
+
+    private static long parseCountryXCount(@NonNull List<?> resultBreakdown, @NonNull String countryX) {
+        return ofNullable(parseStringValue(toMap(resultBreakdown.get(3)), countryX))
+                .map(Long::parseLong)
+                .orElseGet(() -> parseLong(requireNonNull(parseStringValue(toMap(resultBreakdown.get(4)), countryX))));
+    }
+
+    private static long parseCountryYCount(@NonNull List<?> resultBreakdown, @NonNull String countryY) {
+        return ofNullable(parseStringValue(toMap(resultBreakdown.get(4)), countryY))
+                .map(Long::parseLong)
+                .orElseGet(() -> parseLong(requireNonNull(parseStringValue(toMap(resultBreakdown.get(3)), countryY))));
+    }
 
     @Override
     public void executeOperation(LdbcQuery3 operation, JanusGraphDb.JanusGraphConnectionState dbConnectionState, ResultReporter resultReporter) throws DbException {
 
-        long personId = operation.getPersonIdQ3();
-        String countryX = operation.getCountryXName();
-        String countryY = operation.getCountryYName();
-        long startDate = operation.getStartDate().getTime();
-        long duration = operation.getDurationDays();
-        long endDate = startDate + (duration * 86400000L);
-        long limit = 20;
+        final long personId = operation.getPersonIdQ3();
+        final String countryX = operation.getCountryXName();
+        final String countryY = operation.getCountryYName();
+        final long startDate = operation.getStartDate().getTime();
+        final long duration = operation.getDurationDays();
+        final long endDate = startDate + (duration * 86400000L);
+        final long limit = 20;
 
-        JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();   // janusgraph client
+        final JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();
 
-        String queryString = "{\"gremlin\": \"" +                               // gremlin query string
-                "g.V().has('Person','id'," + personId + ").repeat(both('knows').simplePath()).emit().times(2).dedup()." +
+        final String queryString = "g.V().has('Person','id'," + personId + ").repeat(both('knows').simplePath()).emit().times(2).dedup()." +
                 "where(and(out('isLocatedIn').out('isPartOf').has('name',without('" + countryX + "','" + countryY + "'))," +
                 "local(__.in('hasCreator').has('creationDate',between(new Date(" + startDate + "),new Date(" + endDate + ")))." +
                 "out('isLocatedIn').has('name','" + countryX + "').count().is(gt(0)))," +
@@ -48,37 +63,25 @@ public class LdbcQuery3Handler implements OperationHandler<LdbcQuery3, JanusGrap
                 "out('isLocatedIn').has('name','" + countryX + "').count(),desc).by('id',asc).limit(" + limit + ")." +
                 "local(union(identity().valueMap('id','firstName','lastName').unfold(),__.in('hasCreator')." +
                 "has('creationDate',between(new Date(" + startDate + "),new Date(" + endDate + ")))." +
-                "out('isLocatedIn').has('name',within('" + countryX + "','" + countryY + "')).group().by('name').by(count().fold()).unfold()).fold())" +
-                "\"" +
-                "}";
-        String response = client.execute(queryString);                          // execute query
-        ArrayList<LdbcQuery3Result> endResult                                   // init result list
-                = new ArrayList<>();
-        ArrayList<JSONObject> results = gremlinResponseToResultArrayList(response);
-        if (!results.isEmpty()) {
-            for (JSONObject result : results) {
-                ArrayList<JSONObject> resultList = gremlinListToArrayList(result);
-                long countryXCount;
-                long countryYCount;
-                try {
-                    countryXCount = Long.parseLong(getPropertyValue(gremlinMapToHashMap(resultList.get(3)).get(countryX)));
-                    countryYCount = Long.parseLong(getPropertyValue(gremlinMapToHashMap(resultList.get(4)).get(countryY)));
-                } catch (NullPointerException e) {
-                    countryYCount = Long.parseLong(getPropertyValue(gremlinMapToHashMap(resultList.get(3)).get(countryY)));
-                    countryXCount = Long.parseLong(getPropertyValue(gremlinMapToHashMap(resultList.get(4)).get(countryX)));
-                }
-                LdbcQuery3Result res                                                // create result object
-                        = new LdbcQuery3Result(
-                        Long.parseLong(getPropertyValue(gremlinMapToHashMap(resultList.get(0)).get("id"))),
-                        getPropertyValue(gremlinMapToHashMap(resultList.get(1)).get("firstName")),
-                        getPropertyValue(gremlinMapToHashMap(resultList.get(2)).get("lastName")),
-                        countryXCount,
-                        countryYCount,
-                        countryXCount + countryYCount);
-                endResult.add(res);
-            }
-        }
+                "out('isLocatedIn').has('name',within('" + countryX + "','" + countryY + "')).group().by('name').by(count().fold()).unfold()).fold())";
+
+        final List<LdbcQuery3Result> endResult = request(client, queryString).stream()
+                .map(r -> r.get(List.class))
+                .map(l -> {
+                    final long countryXCount = parseCountryXCount(l, countryX);
+                    final long countryYCount = parseCountryYCount(l, countryY);
+
+                    return new LdbcQuery3Result(
+                            parseId(toMap(l.get(0))),
+                            parseStringValue(toMap(l.get(1)), "firstName"),
+                            parseStringValue(toMap(l.get(2)), "lastName"),
+                            countryXCount,
+                            countryYCount,
+                            countryXCount + countryYCount
+                    );
+                })
+                .collect(toList());
+
         resultReporter.report(0, endResult, operation);
     }
-
 }

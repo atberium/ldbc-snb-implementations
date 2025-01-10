@@ -1,39 +1,42 @@
 package com.jackwaudby.ldbcimplementations.queryhandlers;
 
 import com.jackwaudby.ldbcimplementations.JanusGraphDb;
+import com.jackwaudby.ldbcimplementations.utils.GremlinResponseParsers;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.tinkerpop.gremlin.driver.Result;
 import org.ldbcouncil.snb.driver.DbException;
 import org.ldbcouncil.snb.driver.OperationHandler;
 import org.ldbcouncil.snb.driver.ResultReporter;
 import org.ldbcouncil.snb.driver.workloads.interactive.LdbcNoResult;
 import org.ldbcouncil.snb.driver.workloads.interactive.LdbcUpdate6AddPost;
 
-import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-import static com.jackwaudby.ldbcimplementations.utils.HttpResponseToResultMap.httpResponseToResultMap;
+@Slf4j
+public class LdbcUpdate6AddPostHandler extends GremlinHandler implements OperationHandler<LdbcUpdate6AddPost, JanusGraphDb.JanusGraphConnectionState> {
 
-public class LdbcUpdate6AddPostHandler implements OperationHandler<LdbcUpdate6AddPost, JanusGraphDb.JanusGraphConnectionState> {
+    private static final int TX_RETRIES = 5;
 
     @Override
     public void executeOperation(LdbcUpdate6AddPost operation, JanusGraphDb.JanusGraphConnectionState dbConnectionState, ResultReporter resultReporter) throws DbException {
 
-        long postId = operation.getPostId();
-        String imageFile = operation.getImageFile();
-        long creationDate = operation.getCreationDate().getTime();
-        String locationIp = operation.getLocationIp();
-        String browserUsed = operation.getBrowserUsed();
-        String language = operation.getLanguage();
-        String content = operation.getContent();
-        int length = operation.getLength();
-        long personId = operation.getAuthorPersonId();
-        long forumId = operation.getForumId();
-        long countryId = operation.getCountryId();
-        List<Long> tagIds = operation.getTagIds();
+        final long postId = operation.getPostId();
+        final String imageFile = operation.getImageFile();
+        final long creationDate = operation.getCreationDate().getTime();
+        final String locationIp = operation.getLocationIp();
+        final String browserUsed = operation.getBrowserUsed();
+        final String language = operation.getLanguage();
+        final String content = operation.getContent();
+        final int length = operation.getLength();
+        final long personId = operation.getAuthorPersonId();
+        final long forumId = operation.getForumId();
+        final long countryId = operation.getCountryId();
+        final List<Long> tagIds = operation.getTagIds();
 
-        // get JanusGraph client
-        JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();
-        // gremlin query string
-        String queryString = "{\"gremlin\": \"try {" +
+        final JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();
+
+        final String queryString = "try {" +
                 "p = g.addV('Post')" +
                 ".property('id'," + postId + ")" +
                 ".property('imageFile','" + imageFile + "')" +
@@ -41,7 +44,6 @@ public class LdbcUpdate6AddPostHandler implements OperationHandler<LdbcUpdate6Ad
                 ".property('locationIP','" + locationIp + "')" +
                 ".property('browserUsed','" + browserUsed + "')" +
                 ".property('language','" + language + "')" +
-//                ".property('content',\\\"" + content  + "\\\")" +
                 ".property('content','''" + content + "''')" +
                 ".property('length','" + length + "').next();[];" +
                 "g.V().has('Person', 'id'," + personId + ").as('person').V(p).addE('hasCreator').to('person').next();[];" +
@@ -59,27 +61,26 @@ public class LdbcUpdate6AddPostHandler implements OperationHandler<LdbcUpdate6Ad
                 "hm=[query_error:errorMessage];[];" +
                 "graph.tx().rollback();[];" +
                 "};" +
-                "hm;\"" +
-                "}";
+                "hm;";
 
 
-        int TX_ATTEMPTS = 0;
-        int TX_RETRIES = 5;
-        while (TX_ATTEMPTS < TX_RETRIES) {
-            System.out.println("Attempt " + (TX_ATTEMPTS + 1));
-            String response = client.execute(queryString);                              // get response as string
-            HashMap<String, String> result = httpResponseToResultMap(response);         // convert to result map
+        int attempts = 0;
+
+        while (attempts < TX_RETRIES) {
+            log.info("Attempt {}", attempts + 1);
+            final List<Result> response = request(client, queryString);
+            final Map<String, Object> result = GremlinResponseParsers.resultToMap(response.get(0));
             if (result.containsKey("query_error")) {
-                TX_ATTEMPTS = TX_ATTEMPTS + 1;
-                System.out.println("Query Error: " + result.get("query_error"));
+                attempts = attempts + 1;
+                log.error("Query Error: {}", result.get("query_error"));
             } else if (result.containsKey("http_error")) {
-                TX_ATTEMPTS = TX_ATTEMPTS + 1;
-                System.out.println("Gremlin Server Error: " + result.get("http_error"));
+                attempts = attempts + 1;
+                log.error("Gremlin Server Error: {}", result.get("http_error"));
             } else {
-                System.out.println(result.get("query_outcome"));
+                log.info(result.get("query_outcome").toString());
                 break;
             }
         }
-        resultReporter.report(0, LdbcNoResult.INSTANCE, operation);          // pass result to driver
+        resultReporter.report(0, LdbcNoResult.INSTANCE, operation);
     }
 }

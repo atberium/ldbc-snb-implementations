@@ -23,17 +23,17 @@ public class DeleteGraph {
         final JanusGraph graph = JanusGraphFactory.open(getPropertiesPath());
         final GraphTraversalSource g = graph.traversal();
 
-        elementCount(g);                 // get stats
+        elementCount(g);
         log.info("Dropping Graph");
 
-        g.V().drop().iterate();                     // drop graph
-        graph.tx().commit();                        // commit changes
+        g.V().drop().iterate();
+        graph.tx().commit();
 
         log.info("Graph Dropped");
 
-        elementCount(g);                 // get stats
-        closeGraph(g);                   // close graph
-        exit(0);                      // close program
+        elementCount(g);
+        closeGraph(g);
+        exit(0);
     }
 
 

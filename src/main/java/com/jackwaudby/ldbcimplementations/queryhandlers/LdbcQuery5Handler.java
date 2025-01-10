@@ -2,14 +2,14 @@ package com.jackwaudby.ldbcimplementations.queryhandlers;
 
 
 import com.jackwaudby.ldbcimplementations.JanusGraphDb;
-import org.json.JSONObject;
 import org.ldbcouncil.snb.driver.DbException;
 import org.ldbcouncil.snb.driver.OperationHandler;
 import org.ldbcouncil.snb.driver.ResultReporter;
 import org.ldbcouncil.snb.driver.workloads.interactive.LdbcQuery5;
 import org.ldbcouncil.snb.driver.workloads.interactive.LdbcQuery5Result;
 
-import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import static com.jackwaudby.ldbcimplementations.utils.GremlinResponseParsers.*;
 
@@ -21,40 +21,31 @@ import static com.jackwaudby.ldbcimplementations.utils.GremlinResponseParsers.*;
  * that were created by any of these Persons. For each Forum and consider only those Persons which joined
  * that particular Forum after the given date.
  */
-public class LdbcQuery5Handler implements OperationHandler<LdbcQuery5, JanusGraphDb.JanusGraphConnectionState> {
+public class LdbcQuery5Handler extends GremlinHandler implements OperationHandler<LdbcQuery5, JanusGraphDb.JanusGraphConnectionState> {
 
     @Override
     public void executeOperation(LdbcQuery5 operation, JanusGraphDb.JanusGraphConnectionState dbConnectionState, ResultReporter resultReporter) throws DbException {
-        long personId = operation.getPersonIdQ5();
-        long minDate = operation.getMinDate().getTime();
-        long limit = 20;
+        final long personId = operation.getPersonIdQ5();
+        final long minDate = operation.getMinDate().getTime();
+        final long limit = 20;
 
-        JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();   // janusgraph client
+        final JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();
 
-        String queryString = "{\"gremlin\": \"" +                               // gremlin query string
-                "g.V().has('Person','id'," + personId + ").repeat(both('knows').simplePath()).emit().times(2).dedup().sideEffect(store('a')).aggregate('friends')." +
+        final String queryString = "g.V().has('Person','id'," + personId + ").repeat(both('knows').simplePath()).emit().times(2).dedup().sideEffect(store('a')).aggregate('friends')." +
                 "inE('hasMember').has('joinDate',gt(new Date(" + minDate + "))).outV().dedup().as('forums')." +
                 "order().by(local(out('containerOf').match(__.as('post').out('hasCreator').where(within('friends')).as('friend')," +
                 "__.as('post').in('containerOf').as('forum'),__.as('friend').inE('hasMember').has('joinDate',gt(new Date(" + minDate + "))).outV().where(eq('forum')).as('forum')).count()),desc)." +
                 "by('id').limit(" + limit + ").local(union(valueMap('title').unfold(),out('containerOf').match(__.as('post').out('hasCreator').where(within('a')).as('friend')," +
-                "__.as('post').in('containerOf').as('forum'), __.as('friend').inE('hasMember').has('joinDate',gt(new Date(" + minDate + "))).outV().where(eq('forum')).as('forum')).count().fold()).fold())" +
-                "\"" +
-                "}";
-        String response = client.execute(queryString);                          // execute query
-        ArrayList<LdbcQuery5Result> endResult                                   // init result list
-                = new ArrayList<>();
-        ArrayList<JSONObject> results = gremlinResponseToResultArrayList(response);
-        if (!results.isEmpty()) {
-            for (JSONObject result : results) {
-                ArrayList<JSONObject> resultList = gremlinListToArrayList(result);
-                LdbcQuery5Result res                                                // create result object
-                        = new LdbcQuery5Result(
-                        getPropertyValue(gremlinMapToHashMap(resultList.get(0)).get("title")),
-                        Integer.parseInt(getPropertyValue(resultList.get(1)))
-                );
-                endResult.add(res);
-            }
-        }
+                "__.as('post').in('containerOf').as('forum'), __.as('friend').inE('hasMember').has('joinDate',gt(new Date(" + minDate + "))).outV().where(eq('forum')).as('forum')).count().fold()).fold())";
+
+        final List<LdbcQuery5Result> endResult = request(client, queryString).stream()
+                .map(r -> r.get(List.class))
+                .map(l -> new LdbcQuery5Result(
+                        parseStringValue(toMap(l.get(0)), "title"),
+                        parseIntValue(l.get(1))
+                ))
+                .collect(Collectors.toList());
+
         resultReporter.report(0, endResult, operation);
     }
 

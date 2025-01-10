@@ -47,11 +47,9 @@ public class BulkLoadUtils {
 
     private static String tagClassFix(String s) {
         if (s.contentEquals(TAG_CLASS)) {
-            return new StringBuilder()
-                    .append(s, 0, 3)
-                    .append(s.substring(3, 4).toUpperCase())
-                    .append(s.substring(4))
-                    .toString();
+            return s.substring(0, 3) +
+                    s.substring(3, 4).toUpperCase() +
+                    s.substring(4);
         }
 
         return s;

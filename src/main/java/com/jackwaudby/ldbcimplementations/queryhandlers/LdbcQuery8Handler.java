@@ -1,55 +1,57 @@
 package com.jackwaudby.ldbcimplementations.queryhandlers;
 
 import com.jackwaudby.ldbcimplementations.JanusGraphDb;
+import com.jackwaudby.ldbcimplementations.utils.GremlinResponseParsers;
+import lombok.NonNull;
+import org.apache.tinkerpop.gremlin.driver.Result;
 import org.ldbcouncil.snb.driver.DbException;
 import org.ldbcouncil.snb.driver.OperationHandler;
 import org.ldbcouncil.snb.driver.ResultReporter;
 import org.ldbcouncil.snb.driver.workloads.interactive.LdbcQuery8;
 import org.ldbcouncil.snb.driver.workloads.interactive.LdbcQuery8Result;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 
-import static com.jackwaudby.ldbcimplementations.utils.HttpResponseToResultList.httpResponseToResultList;
+import static com.jackwaudby.ldbcimplementations.utils.GremlinResponseParsers.*;
+import static java.util.stream.Collectors.toList;
 
-public class LdbcQuery8Handler implements OperationHandler<LdbcQuery8, JanusGraphDb.JanusGraphConnectionState> {
+public class LdbcQuery8Handler extends GremlinHandler implements OperationHandler<LdbcQuery8, JanusGraphDb.JanusGraphConnectionState> {
 
-    @Override
-    public void executeOperation(LdbcQuery8 operation, JanusGraphDb.JanusGraphConnectionState dbConnectionState, ResultReporter resultReporter) throws DbException {
-        long personId = operation.getPersonIdQ8();
-        int limit = operation.getLimit();
+    private List<Result> getResults(
+            @NonNull LdbcQuery8 operation,
+            @NonNull JanusGraphDb.JanusGraphConnectionState dbConnectionState
+    ) {
+        final long personId = operation.getPersonIdQ8();
+        final int limit = operation.getLimit();
 
-        JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();   // janusgraph client
+        final JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();
 
-        String queryString = "{\"gremlin\": \"" +                               // gremlin query string
-                "g.V().has('Person','id'," + personId + ")." +
+        final String queryString = "g.V().has('Person','id'," + personId + ")." +
                 "in('hasCreator')." +
                 "in('replyOf').as('message')." +
                 "order().by('creationDate',desc).by('id',asc).limit(" + limit + ")." +
                 "out('hasCreator').as('person')." +
                 "select('message','person')." +
                 "by(valueMap('id','creationDate','content'))." +
-                "by(valueMap('id','firstName','lastName'))" +
-                "\"" +
-                "}";
-        String response = client.execute(queryString);                          // execute query
-        ArrayList<HashMap<String, String>> result                               // parse result
-                = httpResponseToResultList(response);
-        ArrayList<LdbcQuery8Result> endResult                                   // init result list
-                = new ArrayList<>();
-        for (final Map<String, String> stringStringHashMap : result) {
-            LdbcQuery8Result res                                                // create result object
-                    = new LdbcQuery8Result(
-                    Long.parseLong(stringStringHashMap.get("personId")),              // personId
-                    stringStringHashMap.get("personFirstName"),                       // personFirstName
-                    stringStringHashMap.get("personLastName"),                        // personLastName
-                    Long.parseLong(stringStringHashMap.get("messageCreationDate")),   // messageCreationDate
-                    Long.parseLong(stringStringHashMap.get("messageId")),             // messageId
-                    stringStringHashMap.get("messageContent")                         // messageContent
-            );
-            endResult.add(res);                                                 // add to result list
-        }
+                "by(valueMap('id','firstName','lastName'))";
+
+        return request(client, queryString);
+    }
+
+    @Override
+    public void executeOperation(LdbcQuery8 operation, JanusGraphDb.JanusGraphConnectionState dbConnectionState, ResultReporter resultReporter) throws DbException {
+        final List<LdbcQuery8Result> endResult = getResults(operation, dbConnectionState).stream()
+                .map(GremlinResponseParsers::resultToMap)
+                .map(r -> new LdbcQuery8Result(
+                        parsePersonId(r),
+                        parsePersonFirstName(r),
+                        parsePersonLastName(r),
+                        parseMessageCreationDate(r),
+                        parseMessageId(r),
+                        parseMessageContent(r)
+                ))
+                .collect(toList());
+
         resultReporter.report(0, endResult, operation);
     }
 }

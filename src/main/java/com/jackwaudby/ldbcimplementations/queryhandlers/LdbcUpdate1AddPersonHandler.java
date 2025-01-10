@@ -1,6 +1,8 @@
 package com.jackwaudby.ldbcimplementations.queryhandlers;
 
 import com.jackwaudby.ldbcimplementations.JanusGraphDb;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.tinkerpop.gremlin.driver.Result;
 import org.ldbcouncil.snb.driver.DbException;
 import org.ldbcouncil.snb.driver.OperationHandler;
 import org.ldbcouncil.snb.driver.ResultReporter;
@@ -8,52 +10,53 @@ import org.ldbcouncil.snb.driver.workloads.interactive.LdbcNoResult;
 import org.ldbcouncil.snb.driver.workloads.interactive.LdbcUpdate1AddPerson;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-import static com.jackwaudby.ldbcimplementations.utils.HttpResponseToResultMap.httpResponseToResultMap;
+import static com.jackwaudby.ldbcimplementations.utils.GremlinResponseParsers.resultToMap;
 
-public class LdbcUpdate1AddPersonHandler implements OperationHandler<LdbcUpdate1AddPerson, JanusGraphDb.JanusGraphConnectionState> {
-
+@Slf4j
+public class LdbcUpdate1AddPersonHandler extends GremlinHandler implements OperationHandler<LdbcUpdate1AddPerson, JanusGraphDb.JanusGraphConnectionState> {
+    private static final int TX_RETRIES = 5;
 
     @Override
     public void executeOperation(LdbcUpdate1AddPerson operation, JanusGraphDb.JanusGraphConnectionState dbConnectionState, ResultReporter resultReporter) throws DbException {
 
-        long personId = operation.getPersonId();
-        String firstName = operation.getPersonFirstName();
-        String lastName = operation.getPersonLastName();
-        String gender = operation.getGender();
-        long birthday = operation.getBirthday().getTime();
-        long creationDate = operation.getCreationDate().getTime();
-        String locationIP = operation.getLocationIp();
-        String browserUsed = operation.getBrowserUsed();
-        long cityId = operation.getCityId();
-        List<String> languages = operation.getLanguages();
-        String lang = languages.toString().replaceAll(", ", "', '").replaceAll("\\[", "['").replaceAll("]", "']");
-        List<String> email = operation.getEmails();
-        String em = email.toString().replaceAll(", ", "', '").replaceAll("\\[", "['").replaceAll("]", "']");
+        final long personId = operation.getPersonId();
+        final String firstName = operation.getPersonFirstName();
+        final String lastName = operation.getPersonLastName();
+        final String gender = operation.getGender();
+        final long birthday = operation.getBirthday().getTime();
+        final long creationDate = operation.getCreationDate().getTime();
+        final String locationIP = operation.getLocationIp();
+        final String browserUsed = operation.getBrowserUsed();
+        final long cityId = operation.getCityId();
+        final List<String> languages = operation.getLanguages();
+        final String lang = languages.toString().replaceAll(", ", "', '").replaceAll("\\[", "['").replaceAll("]", "']");
+        final List<String> email = operation.getEmails();
+        final String em = email.toString().replaceAll(", ", "', '").replaceAll("\\[", "['").replaceAll("]", "']");
 
-        List<Long> tagIds = operation.getTagIds();
-        List<LdbcUpdate1AddPerson.Organization> workAt = operation.getWorkAt();
-        List<Long> companyIds = new ArrayList<>();
-        List<Integer> workFrom = new ArrayList<>();
+        final List<Long> tagIds = operation.getTagIds();
+        final List<LdbcUpdate1AddPerson.Organization> workAt = operation.getWorkAt();
+        final List<Long> companyIds = new ArrayList<>();
+        final List<Integer> workFrom = new ArrayList<>();
         for (int i = 0; i < workAt.size(); i++) {
             companyIds.add(i, workAt.get(i).getOrganizationId());
             workFrom.add(i, workAt.get(i).getYear());
         }
 
-        List<LdbcUpdate1AddPerson.Organization> studyAt = operation.getStudyAt();
-        List<Long> uniIds = new ArrayList<>();
-        List<Integer> classYear = new ArrayList<>();
+        final List<LdbcUpdate1AddPerson.Organization> studyAt = operation.getStudyAt();
+        final List<Long> uniIds = new ArrayList<>();
+        final List<Integer> classYear = new ArrayList<>();
         for (int i = 0; i < studyAt.size(); i++) {
             uniIds.add(i, studyAt.get(i).getOrganizationId());
             classYear.add(i, studyAt.get(i).getYear());
         }
 
-        // get JanusGraph client
-        JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();
-        // gremlin query string
-        String queryString = "{\"gremlin\": \"try {" +
+
+        final JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();
+
+        final String queryString = "try {" +
                 "p = g.addV('Person')" +
                 ".property('id'," + personId + ")" +
                 ".property('firstName','" + firstName + "')" +
@@ -104,30 +107,26 @@ public class LdbcUpdate1AddPersonHandler implements OperationHandler<LdbcUpdate1
                 "hm=[query_error:errorMessage];[];" +
                 "graph.tx().rollback();[];" +
                 "};" +
-                "hm;\"" +
-                "}";
+                "hm;";
 
-        int TX_ATTEMPTS = 0;
-        int TX_RETRIES = 5;
+        int attempts = 0;
 
-        while (TX_ATTEMPTS < TX_RETRIES) {
-            System.out.println("Attempt " + (TX_ATTEMPTS + 1));
-            String response = client.execute(queryString);                                // get response as string
-            HashMap<String, String> result = httpResponseToResultMap(response);      // convert to result map
+        while (attempts < TX_RETRIES) {
+            log.info("Attempt {}", attempts + 1);
+            final List<Result> response = request(client, queryString);
+            final Map<String, Object> result = resultToMap(response.get(0));
             if (result.containsKey("query_error")) {
-                TX_ATTEMPTS = TX_ATTEMPTS + 1;
-                System.out.println("Query Error: " + result.get("query_error"));
+                attempts = attempts + 1;
+                log.error("Query Error: {}", result.get("query_error"));
             } else if (result.containsKey("http_error")) {
-                TX_ATTEMPTS = TX_ATTEMPTS + 1;
-                System.out.println("Gremlin Server Error: " + result.get("http_error"));
+                attempts = attempts + 1;
+                log.error("Gremlin Server Error: {}", result.get("http_error"));
             } else {
-                System.out.println(result.get("query_outcome"));
+                log.info(result.get("query_outcome").toString());
                 break;
             }
         }
 
-
-        // pass result to driver
         resultReporter.report(0, LdbcNoResult.INSTANCE, operation);
 
     }

@@ -2,14 +2,15 @@ package com.jackwaudby.ldbcimplementations.queryhandlers;
 
 import com.jackwaudby.ldbcimplementations.JanusGraphDb;
 import lombok.extern.slf4j.Slf4j;
-import org.json.JSONObject;
+import org.apache.tinkerpop.gremlin.driver.Result;
 import org.ldbcouncil.snb.driver.DbException;
 import org.ldbcouncil.snb.driver.OperationHandler;
 import org.ldbcouncil.snb.driver.ResultReporter;
 import org.ldbcouncil.snb.driver.workloads.interactive.LdbcShortQuery6MessageForum;
 import org.ldbcouncil.snb.driver.workloads.interactive.LdbcShortQuery6MessageForumResult;
 
-import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 import static com.jackwaudby.ldbcimplementations.utils.GremlinResponseParsers.*;
 import static com.jackwaudby.ldbcimplementations.utils.ImplementationConfiguration.getTxnAttempts;
@@ -20,14 +21,13 @@ import static com.jackwaudby.ldbcimplementations.utils.ImplementationConfigurati
  */
 @Slf4j
 @SuppressWarnings("unused")
-public class LdbcShortQuery6MessageForumHandler implements OperationHandler<LdbcShortQuery6MessageForum, JanusGraphDb.JanusGraphConnectionState> {
+public class LdbcShortQuery6MessageForumHandler extends GremlinHandler implements OperationHandler<LdbcShortQuery6MessageForum, JanusGraphDb.JanusGraphConnectionState> {
     @Override
     public void executeOperation(LdbcShortQuery6MessageForum operation, JanusGraphDb.JanusGraphConnectionState dbConnectionState, ResultReporter resultReporter) throws DbException {
 
-        long messageId = operation.getMessageForumId();
-        JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();   // janusgraph client
-        String queryString = "{\"gremlin\": \"" +
-                "graph.tx().rollback();[];" +
+        final long messageId = operation.getMessageForumId();
+        final JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();
+        final String queryString = "graph.tx().rollback();[];" +
                 "try{" +
                 "result=g.V().has('Post','id'," + messageId + ").fold()." +
                 "coalesce(unfold(),V().has('Comment','id'," + messageId + ")." +
@@ -42,44 +42,32 @@ public class LdbcShortQuery6MessageForumHandler implements OperationHandler<Ldbc
                 "result=[error:errorMessage];" +
                 "graph.tx().rollback();[];" +
                 "};" +
-                "result" +
-                "\"" +
-                "}";
+                "result";
 
-        int TX_ATTEMPTS = 0;                                                                 // init. transaction attempts
-        int TX_RETRIES = getTxnAttempts();
+        final List<Result> response = tryRequest(client, queryString, getTxnAttempts());
 
-        while (TX_ATTEMPTS < TX_RETRIES) {
-            log.info("Attempt " + (TX_ATTEMPTS + 1) + ": " + LdbcShortQuery6MessageForumHandler.class.getSimpleName());
-            String response = client.execute(queryString);                                            // execute query
-            ArrayList<JSONObject> results = gremlinResponseToResultArrayList(response);          // get result list
-            if (gremlinMapToHashMap(results.get(0)).containsKey("error")) {
-                log.error(getPropertyValue(gremlinMapToHashMap(results.get(0)).get("error")));
-                TX_ATTEMPTS = TX_ATTEMPTS + 1;
-            } else {
-
-                JSONObject forum = gremlinMapToHashMap(results.get(0)).get("forum");
-                long forumId = Long.parseLong(getPropertyValue(gremlinMapToHashMap(forum).get("id")));
-                String forumTitle = getPropertyValue(gremlinMapToHashMap(forum).get("title"));
-
-                JSONObject moderator = gremlinMapToHashMap(results.get(0)).get("moderator");
-                long moderatorId = Long.parseLong(getPropertyValue(gremlinMapToHashMap(moderator).get("id")));
-                String moderatorFirstName = getPropertyValue(gremlinMapToHashMap(moderator).get("firstName"));
-                String moderatorLastName = getPropertyValue(gremlinMapToHashMap(moderator).get("lastName"));
-
-                LdbcShortQuery6MessageForumResult queryResult = new LdbcShortQuery6MessageForumResult(
-                        forumId,
-                        forumTitle,
-                        moderatorId,
-                        moderatorFirstName,
-                        moderatorLastName
-                );
-
-                resultReporter.report(0, queryResult, operation);
-                break;
-            }
+        if (response == null) {
+            return;
         }
 
+        final Map<String, Object> person = resultToMap(response.get(0));
+        final Map<String, Object> forum = toMap(person.get("forum"));
+        final long forumId = parseId(forum);
+        final String forumTitle = parseStringValue(forum, "title");
 
+        final Map<String, Object> moderator = toMap(person.get("moderator"));
+        final long moderatorId = parseId(moderator);
+        final String moderatorFirstName = parseStringValue(moderator, "firstName");
+        final String moderatorLastName = parseStringValue(moderator, "lastName");
+
+        final LdbcShortQuery6MessageForumResult queryResult = new LdbcShortQuery6MessageForumResult(
+                forumId,
+                forumTitle,
+                moderatorId,
+                moderatorFirstName,
+                moderatorLastName
+        );
+
+        resultReporter.report(0, queryResult, operation);
     }
 }
