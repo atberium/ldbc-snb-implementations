@@ -1,23 +1,29 @@
 package com.jackwaudby.ldbcimplementations.utils;
 
+import com.jackwaudby.ldbcimplementations.BulkLogger;
 import com.jackwaudby.ldbcimplementations.CompleteLoader;
+import com.jackwaudby.ldbcimplementations.GraphCsvReader;
+import com.jackwaudby.ldbcimplementations.csv.CsvItem;
 import lombok.NonNull;
 import lombok.experimental.UtilityClass;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVRecord;
+import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversalSource;
+import org.apache.tinkerpop.gremlin.structure.Edge;
+import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.janusgraph.core.JanusGraph;
 
 import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.Reader;
-import java.util.*;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Set;
+import java.util.function.Consumer;
 
 import static com.jackwaudby.ldbcimplementations.utils.BulkLoadUtils.*;
 import static com.jackwaudby.ldbcimplementations.utils.ExtractLabels.extractLabels;
 import static com.jackwaudby.ldbcimplementations.utils.LineCount.lineCount;
+import static java.lang.Long.parseLong;
 
 /**
  * This script provides a method for bulk loading edges.
@@ -25,6 +31,7 @@ import static com.jackwaudby.ldbcimplementations.utils.LineCount.lineCount;
 @Slf4j
 @UtilityClass
 public final class BulkLoadEdges {
+    private static final Set<String> PROPERTIES_INTEGER = Set.of("classYear", "workFrom");
 
     public static void bulkLoadEdges(
             @NonNull String pathToData,
@@ -32,19 +39,48 @@ public final class BulkLoadEdges {
             @NonNull GraphTraversalSource g,
             @NonNull Map<String, Object> ldbcIdToJanusGraphId
     ) {
-        final List<String> integerProperties = new ArrayList<>();
-        integerProperties.add("classYear");
-        integerProperties.add("workFrom");
-
         final Set<String> vertexFilePaths = getVertexFilePaths(pathToData);
         final File dataDirectory = new File(pathToData);
         final File[] filesInDataDirectory = dataDirectory.listFiles();
 
-        if (filesInDataDirectory != null) {
+        if (filesInDataDirectory == null) {
+            CompleteLoader.getLogger().error("Supplied path is not a directory");
+        }
+
+        final BulkLogger bulkLogger = new BulkLogger();
+
+        final Consumer<CsvItem> csvItemConsumer = i -> {
+            final String edgeTail = getVertexOrEdgePart(i.getCleanFileName()[0]);
+            final String edgeHead = getVertexOrEdgePart(i.getCleanFileName()[2]);
+            final String edgeLabel = i.getCleanFileName()[1];
+            final String startId = i.getRecord().get(0) + edgeTail;
+            final String endId = i.getRecord().get(1) + edgeHead;
+
+            final GraphTraversal<Vertex, Edge> traversal = g.V()
+                    .hasId(ldbcIdToJanusGraphId.get(endId))
+                    .as("a")
+                    .V().hasId(ldbcIdToJanusGraphId.get(startId))
+                    .addE(edgeLabel);
+
+            setProperty(i.getRecord(), i.getHeader(), traversal);
+
+            try {
+                traversal.to("a").next();
+            } catch (NoSuchElementException e) {
+                log.error("Unexpected error", e);
+            }
+
+            bulkLogger.registerItem(getEdgeKey(edgeTail, edgeHead, edgeLabel));
+
+            graph.tx().commit();
+        };
+
+        try (final GraphCsvReader graphCsvReader = new GraphCsvReader(csvItemConsumer)) {
             for (File file : filesInDataDirectory) {
                 if (fileNotSuitable(file) || fileContainsVertices(file, vertexFilePaths)) {
                     continue;
                 }
+
                 final String[] cleanFileName = extractLabels(file.toString(), pathToData);
 
                 if (cleanFileName.length != 3) {
@@ -55,86 +91,38 @@ public final class BulkLoadEdges {
                 final String edgeHead = getVertexOrEdgePart(cleanFileName[2]);
                 final String edgeLabel = cleanFileName[1];
 
-                CompleteLoader.getLogger().info("Adding Edge: ({})-[:{}]->({})", edgeTail, edgeLabel, edgeHead);
+                CompleteLoader.getLogger().info("Adding Edge: {}}", getEdgeKey(edgeTail, edgeHead, edgeLabel));
 
-                final int elementsToAdd = lineCount(file);
+                bulkLogger.registerItemsToAdd(getEdgeKey(edgeTail, edgeHead, edgeLabel), lineCount(file));
 
-                Reader in;
-                try {
-                    in = new FileReader(file);
-                    Iterable<CSVRecord> records;
-                    try {
-                        records = CSVFormat.DEFAULT.withDelimiter('|').parse(in);
-                        final CSVRecord header = records.iterator().next();
-
-                        final List<String> edgeInfo = new ArrayList<>();
-                        for (int i = 0; i < header.size(); i++) {
-                            edgeInfo.add(header.get(i));
-                        }
-
-                        int elementsAdded = 0;
-                        String startId;
-                        String endId;
-                        if (edgeInfo.size() == 3) {
-
-                            final String edgePropertyKey = edgeInfo.get(2);
-
-                            for (CSVRecord record : records) {
-
-                                elementsAdded = elementsAdded + 1;
-                                startId = record.get(0) + edgeTail;
-                                endId = record.get(1) + edgeHead;
-
-                                if (integerProperties.contains(edgePropertyKey)) {
-
-                                    final long edgePropertyValue = Long.parseLong(record.get(2));
-
-                                    g.V().hasId(ldbcIdToJanusGraphId.get(endId)).as("a")
-                                            .V().hasId(ldbcIdToJanusGraphId.get(startId))
-                                            .addE(edgeLabel)
-                                            .property(edgePropertyKey, edgePropertyValue)
-                                            .to("a")
-                                            .next();
-
-                                } else {
-                                    final Date edgePropertyValue = FORMAT_DATETIME.parse(record.get(2));
-
-                                    g.V().hasId(ldbcIdToJanusGraphId.get(endId)).as("a")
-                                            .V().hasId(ldbcIdToJanusGraphId.get(startId))
-                                            .addE(edgeLabel)
-                                            .property(edgePropertyKey, edgePropertyValue.getTime())
-                                            .to("a")
-                                            .next();
-
-                                }
-                            }
-                        } else {
-                            for (CSVRecord record : records) {
-                                elementsAdded = elementsAdded + 1;
-
-                                startId = record.get(0) + edgeTail;
-                                endId = record.get(1) + edgeHead;
-
-                                g.V().hasId(ldbcIdToJanusGraphId.get(endId)).as("a")
-                                        .V().hasId(ldbcIdToJanusGraphId.get(startId))
-                                        .addE(edgeLabel)
-                                        .to("a")
-                                        .next();
-
-                            }
-                        }
-
-                        graph.tx().commit();
-
-                        CompleteLoader.getLogger().info("{}/{}", elementsAdded, elementsToAdd);
-                    } catch (Exception e) {
-                        log.error("Unexpected error", e);
-                    }
-                } catch (FileNotFoundException e) {
-                    log.error("Unexpected error", e);
-                }
+                graphCsvReader.read(file, cleanFileName);
             }
         }
+
+        bulkLogger.log();
+
         graph.tx().commit();
+    }
+
+    private static void setProperty(
+            @NonNull CSVRecord record,
+            @NonNull CSVRecord header,
+            @NonNull GraphTraversal<Vertex, Edge> traversal
+    ) {
+        if (header.size() < 3) {
+            return;
+        }
+
+        final String edgePropertyKey = header.get(2);
+
+        if (PROPERTIES_INTEGER.contains(edgePropertyKey)) {
+            traversal.property(edgePropertyKey, parseLong(record.get(2)));
+        } else {
+            traversal.property(edgePropertyKey, formatDatetime(record.get(2)).getTime());
+        }
+    }
+
+    private static String getEdgeKey(@NonNull String tail, @NonNull String head, @NonNull String label) {
+        return String.format("(%s)-[:%s]->(%s)", tail, label, head);
     }
 }

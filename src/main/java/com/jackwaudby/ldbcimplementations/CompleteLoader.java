@@ -8,8 +8,8 @@ import org.janusgraph.core.JanusGraphFactory;
 import org.janusgraph.core.schema.JanusGraphManagement;
 import org.slf4j.Logger;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static com.jackwaudby.ldbcimplementations.utils.BulkLoadEdges.bulkLoadEdges;
 import static com.jackwaudby.ldbcimplementations.utils.BulkLoadVertices.bulkLoadVertices;
@@ -31,7 +31,7 @@ public class CompleteLoader {
 
         final String pathToData = getDataPath();
 
-        final Map<String, Object> ldbcIdToJanusGraphId = new HashMap<>();
+        final Map<String, Object> ldbcIdToJanusGraphId = new ConcurrentHashMap<>();
 
         log.info("Opening JanusGraph connection");
         final JanusGraph graph = JanusGraphFactory.open(getPropertiesPath());
