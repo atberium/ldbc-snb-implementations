@@ -1,6 +1,7 @@
 package com.jackwaudby.ldbcimplementations.utils;
 
 import com.jackwaudby.ldbcimplementations.CompleteLoader;
+import lombok.NonNull;
 import lombok.experimental.UtilityClass;
 import org.janusgraph.core.Cardinality;
 import org.janusgraph.core.JanusGraph;
@@ -18,7 +19,7 @@ public class LoadSchema {
      *
      * @param graph JanusGraph instance
      */
-    public static void loadSchema(JanusGraph graph) {
+    public static void loadSchema(@NonNull JanusGraph graph) {
 
         final JanusGraphManagement mgmt = graph.openManagement();
 

@@ -34,35 +34,32 @@ public class CompleteLoader {
         final Map<String, Object> ldbcIdToJanusGraphId = new ConcurrentHashMap<>();
 
         log.info("Opening JanusGraph connection");
-        final JanusGraph graph = JanusGraphFactory.open(getPropertiesPath());
+        try (JanusGraph graph = JanusGraphFactory.open(getPropertiesPath())) {
+            log.info("Creating Graph Traversal Source");
+            final GraphTraversalSource g = graph.traversal();
 
-        log.info("Creating Graph Traversal Source");
-        final GraphTraversalSource g = graph.traversal();
+            log.info("Loading Schema");
+            loadSchema(graph);
 
-        log.info("Loading Schema");
-        loadSchema(graph);
+            final JanusGraphManagement schema = graph.openManagement();
+            log.info("Schema: {}", schema.printSchema());
+            schema.commit();
 
-        log.info("Loading Index");
-        loadIndexes(graph);
+            log.info("Loading Vertices");
+            bulkLoadVertices(pathToData, graph, g, ldbcIdToJanusGraphId);
 
-        final JanusGraphManagement schema = graph.openManagement();
-        log.info("Schema: {}", schema.printSchema());
-        schema.commit();
+            log.info("Loading Index");
+            loadIndexes(graph);
 
-        log.info("Loading Vertices");
-        bulkLoadVertices(pathToData, graph, g, ldbcIdToJanusGraphId);
+            log.info("Loading Edges");
+            bulkLoadEdges(pathToData, graph, g, ldbcIdToJanusGraphId);
 
-        log.info("Loading Edges");
-        bulkLoadEdges(pathToData, graph, g, ldbcIdToJanusGraphId);
+            log.info("Reindex");
+            reindex(graph);
 
-        log.info("Reindex");
-        reindex(graph);
-
-        log.info("Closing Graph Traversal Source");
-        closeGraph(g);
-
-        log.info("Closing JanusGraph connection");
-        graph.close();
+            log.info("Closing Graph Traversal Source");
+            closeGraph(g);
+        }
     }
 
     public static Logger getLogger() {

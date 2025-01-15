@@ -1,6 +1,7 @@
 package com.jackwaudby.ldbcimplementations.utils;
 
 import com.jackwaudby.ldbcimplementations.CompleteLoader;
+import lombok.NonNull;
 import lombok.experimental.UtilityClass;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.janusgraph.core.JanusGraph;
@@ -15,7 +16,7 @@ public class LoadIndexes {
      *
      * @param graph JanusGraph instance
      */
-    public static void loadIndexes(JanusGraph graph) {
+    public static void loadIndexes(@NonNull JanusGraph graph) {
 
         final JanusGraphManagement mgmt = graph.openManagement();
 
