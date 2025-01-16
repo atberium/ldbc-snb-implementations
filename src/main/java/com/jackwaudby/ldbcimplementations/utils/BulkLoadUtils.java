@@ -9,17 +9,17 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.jackwaudby.ldbcimplementations.utils.JanusGraphUtils.getValidVertexFiles;
+import static com.jackwaudby.ldbcimplementations.utils.JanusGraphUtils.getValidVertexPropertiesFiles;
 import static java.time.ZoneOffset.UTC;
 import static java.time.format.DateTimeFormatter.ofPattern;
 import static java.util.Locale.US;
+import static java.util.stream.Collectors.toSet;
 
 @UtilityClass
 public class BulkLoadUtils {
-    public static final String WORD_DELIMITER = ";";
     private static final DateTimeFormatter FORMATTER_DATE = ofPattern("yyyy-MM-dd", US)
             .withZone(UTC);
     private static final DateTimeFormatter FORMATTER_DATETIME = ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ", US);
@@ -27,19 +27,17 @@ public class BulkLoadUtils {
     private static final String SUITABLE_FILE_SUFFIX = ".csv";
 
     public static Set<String> getVertexFilePaths(@NonNull String pathToData) {
-        return Stream.of(getValidVertexFiles().split(","))
-                .map(f -> pathToData + f)
-                .collect(Collectors.toSet());
+        return getFilePaths(getValidVertexFiles(), pathToData);
+    }
+
+    public static Set<String> getVertexPropertiesFilePaths(@NonNull String pathToData) {
+        return getFilePaths(getValidVertexPropertiesFiles(), pathToData);
     }
 
     public static boolean fileNotSuitable(@NonNull File file) {
         final String filePath = file.toString();
 
         return !file.toString().endsWith(SUITABLE_FILE_SUFFIX) || filePath.contains("update");
-    }
-
-    public static boolean fileContainsVertices(@NonNull File file, @NonNull Set<String> suitablePaths) {
-        return suitablePaths.contains(file.toString());
     }
 
     public static String getVertexOrEdgePart(@NonNull String filenamePart) {
@@ -56,6 +54,12 @@ public class BulkLoadUtils {
 
     public static String getLabel(@NonNull String[] cleanFileName) {
         return getVertexOrEdgePart(cleanFileName[0]);
+    }
+
+    private static Set<String> getFilePaths(@NonNull String filesString, @NonNull String pathToData) {
+        return Stream.of(filesString.split(","))
+                .map(f -> pathToData + f)
+                .collect(toSet());
     }
 
     private static String tagClassFix(String s) {

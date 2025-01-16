@@ -40,6 +40,7 @@ public final class BulkLoadEdges {
             @NonNull Map<String, Object> ldbcIdToJanusGraphId
     ) {
         final Set<String> vertexFilePaths = getVertexFilePaths(pathToData);
+        final Set<String> vertexFilePropertiesPaths = getVertexPropertiesFilePaths(pathToData);
         final File dataDirectory = new File(pathToData);
         final File[] filesInDataDirectory = dataDirectory.listFiles();
 
@@ -77,7 +78,9 @@ public final class BulkLoadEdges {
 
         try (final GraphCsvReader graphCsvReader = new GraphCsvReader(csvItemConsumer)) {
             for (File file : filesInDataDirectory) {
-                if (fileNotSuitable(file) || fileContainsVertices(file, vertexFilePaths)) {
+                if (fileNotSuitable(file)
+                        || vertexFilePaths.contains(file.toString())
+                        || vertexFilePropertiesPaths.contains(file.toString())) {
                     continue;
                 }
 

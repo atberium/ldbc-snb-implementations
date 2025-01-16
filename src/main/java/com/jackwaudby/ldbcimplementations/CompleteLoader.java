@@ -13,6 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import static com.jackwaudby.ldbcimplementations.utils.BulkLoadEdges.bulkLoadEdges;
 import static com.jackwaudby.ldbcimplementations.utils.BulkLoadVertices.bulkLoadVertices;
+import static com.jackwaudby.ldbcimplementations.utils.BulkLoadVerticesProperties.bulkLoadProperties;
 import static com.jackwaudby.ldbcimplementations.utils.CloseGraph.closeGraph;
 import static com.jackwaudby.ldbcimplementations.utils.JanusGraphUtils.getDataPath;
 import static com.jackwaudby.ldbcimplementations.utils.JanusGraphUtils.getPropertiesPath;
@@ -50,6 +51,9 @@ public class CompleteLoader {
 
             log.info("Loading Index");
             loadIndexes(graph);
+
+            log.info("Loading Vertices Properties");
+            bulkLoadProperties(pathToData, graph, g, ldbcIdToJanusGraphId);
 
             log.info("Loading Edges");
             bulkLoadEdges(pathToData, graph, g, ldbcIdToJanusGraphId);

@@ -17,6 +17,8 @@ public class JanusGraphUtils {
     private static final String DEFAULT_VALID_VERTEX_FILES = "comment_0_0.csv,forum_0_0.csv,person_0_0.csv," +
             "organisation_0_0.csv,place_0_0.csv," +
             "post_0_0.csv,tag_0_0.csv,tagclass_0_0.csv";
+    private static final String DEFAULT_VALID_VERTEX_PROPERTIES_FILES = "person_email_emailaddress_0_0.csv," +
+            "person_speaks_language_0_0.csv";
 
     public static String getPropertiesPath() {
         return getEnv(PATH_TO_JANUSGRAPH_PROPERTIES, DEFAULT_JANUS_GRAPH_PROPERTY);
@@ -28,6 +30,10 @@ public class JanusGraphUtils {
 
     public static String getValidVertexFiles() {
         return getEnv(VALID_VERTEX_FILES, DEFAULT_VALID_VERTEX_FILES);
+    }
+
+    public static String getValidVertexPropertiesFiles() {
+        return getEnv(VALID_VERTEX_PROPERTIES_FILES, DEFAULT_VALID_VERTEX_PROPERTIES_FILES);
     }
 
     private static String getEnv(@NonNull Environments environment, @Nullable String defaultValue) {

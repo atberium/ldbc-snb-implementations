@@ -23,7 +23,6 @@ import static com.jackwaudby.ldbcimplementations.utils.ExtractLabels.extractLabe
 import static com.jackwaudby.ldbcimplementations.utils.LineCount.lineCount;
 import static java.lang.Integer.parseInt;
 import static java.lang.Long.parseLong;
-import static org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality.list;
 
 /**
  * This script provides a method for loading vertices.
@@ -33,7 +32,6 @@ import static org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality.
 public class BulkLoadVertices {
     private static final Set<String> PROPERTIES_INTEGER = Set.of("length", "classYear", "workForm");
     private static final Set<String> PROPERTIES_DATETIME = Set.of("joinDate", "creationDate");
-    private static final Set<String> PROPERTIES_SET = Set.of("language", "email");
 
     public static void bulkLoadVertices(
             @NonNull String pathToData,
@@ -110,11 +108,6 @@ public class BulkLoadVertices {
                     traversal.property(header.get(i), formatDate(columnValue));
                 } else if (PROPERTIES_DATETIME.contains(header.get(i))) {
                     traversal.property(header.get(i), formatDatetime(columnValue));
-                } else if (PROPERTIES_SET.contains(header.get(i))) {
-                    final String[] setArray = columnValue.split(WORD_DELIMITER);
-                    for (String s : setArray) {
-                        traversal.property(list, header.get(i), s);
-                    }
                 } else {
                     traversal.property(header.get(i), columnValue);
                 }
