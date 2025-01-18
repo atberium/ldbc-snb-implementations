@@ -11,13 +11,13 @@ import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversalSo
 import org.janusgraph.core.JanusGraph;
 
 import java.io.File;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
 import static com.jackwaudby.ldbcimplementations.utils.BulkLoadUtils.*;
 import static com.jackwaudby.ldbcimplementations.utils.ExtractLabels.extractLabels;
 import static com.jackwaudby.ldbcimplementations.utils.LineCount.lineCount;
+import static java.lang.Long.parseLong;
 import static org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality.list;
 
 /**
@@ -29,8 +29,7 @@ public class BulkLoadVerticesProperties {
     public static void bulkLoadProperties(
             @NonNull String pathToData,
             @NonNull JanusGraph graph,
-            @NonNull GraphTraversalSource g,
-            @NonNull Map<String, Object> ldbcIdToJanusGraphId
+            @NonNull GraphTraversalSource g
     ) {
         final Set<String> vertexPropertiesFilePaths = getVertexPropertiesFilePaths(pathToData);
         final File dataDirectory = new File(pathToData);
@@ -44,9 +43,10 @@ public class BulkLoadVerticesProperties {
 
         final Consumer<CsvItem> csvItemConsumer = i -> {
             final String vertexLabel = getLabel(i.getCleanFileName());
-            final Object vertexId = ldbcIdToJanusGraphId.get(i.getRecord().get(0) + vertexLabel);
 
-            g.V(vertexId).property(list, i.getHeader().get(1), i.getRecord().get(1)).next();
+            g.V().has(vertexLabel, "id", parseLong(i.getRecord().get(0)))
+                    .property(list, i.getHeader().get(1), i.getRecord().get(1))
+                    .next();
 
             bulkLogger.registerItem(vertexLabel);
 

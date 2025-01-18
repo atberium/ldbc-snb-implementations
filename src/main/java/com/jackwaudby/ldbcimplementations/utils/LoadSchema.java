@@ -1,6 +1,7 @@
 package com.jackwaudby.ldbcimplementations.utils;
 
 import com.jackwaudby.ldbcimplementations.CompleteLoader;
+import com.jackwaudby.ldbcimplementations.Index;
 import lombok.NonNull;
 import lombok.experimental.UtilityClass;
 import org.janusgraph.core.Cardinality;
@@ -24,14 +25,10 @@ public class LoadSchema {
         final JanusGraphManagement mgmt = graph.openManagement();
 
         try {
-            mgmt.makeVertexLabel("Place").make();
-            mgmt.makeVertexLabel("Comment").make();
-            mgmt.makeVertexLabel("Forum").make();
-            mgmt.makeVertexLabel("Person").make();
-            mgmt.makeVertexLabel("Post").make();
-            mgmt.makeVertexLabel("Tag").make();
-            mgmt.makeVertexLabel("TagClass").make();
-            mgmt.makeVertexLabel("Organisation").make();
+            for (Index index : Index.values()) {
+                mgmt.makeVertexLabel(index.getLabel()).make();
+            }
+
             mgmt.makeEdgeLabel("containerOf").multiplicity(Multiplicity.SIMPLE).make();
             mgmt.makeEdgeLabel("hasCreator").multiplicity(Multiplicity.SIMPLE).make();
             mgmt.makeEdgeLabel("hasInterest").multiplicity(Multiplicity.SIMPLE).make();

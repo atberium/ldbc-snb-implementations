@@ -14,7 +14,6 @@ import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.janusgraph.core.JanusGraph;
 
 import java.io.File;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -36,8 +35,7 @@ public class BulkLoadVertices {
     public static void bulkLoadVertices(
             @NonNull String pathToData,
             @NonNull JanusGraph graph,
-            @NonNull GraphTraversalSource g,
-            @NonNull Map<String, Object> ldbcIdToJanusGraphId
+            @NonNull GraphTraversalSource g
     ) {
         final Set<String> vertexFilePaths = getVertexFilePaths(pathToData);
         final File dataDirectory = new File(pathToData);
@@ -51,14 +49,13 @@ public class BulkLoadVertices {
 
         final Consumer<CsvItem> csvItemConsumer = i -> {
             final String vertexLabel = getLabel(i.getCleanFileName());
-            final String compositeLdbcId = i.getRecord().get(0) + vertexLabel;
             final long ldbcId = parseLong(i.getRecord().get(0));
             final GraphTraversal<Vertex, Vertex> traversal = g.addV(vertexLabel)
                     .property(i.getHeader().get(0), ldbcId);
 
             addProperties(traversal, i.getRecord(), i.getHeader());
 
-            ldbcIdToJanusGraphId.put(compositeLdbcId, traversal.next().id());
+            traversal.next();
 
             bulkLogger.registerItem(vertexLabel);
 

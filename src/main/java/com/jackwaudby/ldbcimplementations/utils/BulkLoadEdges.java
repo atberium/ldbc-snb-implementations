@@ -15,7 +15,6 @@ import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.janusgraph.core.JanusGraph;
 
 import java.io.File;
-import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -36,8 +35,7 @@ public final class BulkLoadEdges {
     public static void bulkLoadEdges(
             @NonNull String pathToData,
             @NonNull JanusGraph graph,
-            @NonNull GraphTraversalSource g,
-            @NonNull Map<String, Object> ldbcIdToJanusGraphId
+            @NonNull GraphTraversalSource g
     ) {
         final Set<String> vertexFilePaths = getVertexFilePaths(pathToData);
         final Set<String> vertexFilePropertiesPaths = getVertexPropertiesFilePaths(pathToData);
@@ -54,13 +52,11 @@ public final class BulkLoadEdges {
             final String edgeTail = getVertexOrEdgePart(i.getCleanFileName()[0]);
             final String edgeHead = getVertexOrEdgePart(i.getCleanFileName()[2]);
             final String edgeLabel = i.getCleanFileName()[1];
-            final String startId = i.getRecord().get(0) + edgeTail;
-            final String endId = i.getRecord().get(1) + edgeHead;
 
             final GraphTraversal<Vertex, Edge> traversal = g.V()
-                    .hasId(ldbcIdToJanusGraphId.get(endId))
+                    .has(edgeHead, "id", parseLong(i.getRecord().get(1)))
                     .as("a")
-                    .V().hasId(ldbcIdToJanusGraphId.get(startId))
+                    .V().has(edgeTail, "id", parseLong(i.getRecord().get(0)))
                     .addE(edgeLabel);
 
             setProperty(i.getRecord(), i.getHeader(), traversal);

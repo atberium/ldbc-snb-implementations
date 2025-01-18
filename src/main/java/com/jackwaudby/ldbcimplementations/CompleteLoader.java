@@ -8,9 +8,6 @@ import org.janusgraph.core.JanusGraphFactory;
 import org.janusgraph.core.schema.JanusGraphManagement;
 import org.slf4j.Logger;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
 import static com.jackwaudby.ldbcimplementations.utils.BulkLoadEdges.bulkLoadEdges;
 import static com.jackwaudby.ldbcimplementations.utils.BulkLoadVertices.bulkLoadVertices;
 import static com.jackwaudby.ldbcimplementations.utils.BulkLoadVerticesProperties.bulkLoadProperties;
@@ -32,9 +29,8 @@ public class CompleteLoader {
 
         final String pathToData = getDataPath();
 
-        final Map<String, Object> ldbcIdToJanusGraphId = new ConcurrentHashMap<>();
-
         log.info("Opening JanusGraph connection");
+
         try (JanusGraph graph = JanusGraphFactory.open(getPropertiesPath())) {
             log.info("Creating Graph Traversal Source");
             final GraphTraversalSource g = graph.traversal();
@@ -47,19 +43,19 @@ public class CompleteLoader {
             schema.commit();
 
             log.info("Loading Vertices");
-            bulkLoadVertices(pathToData, graph, g, ldbcIdToJanusGraphId);
+            bulkLoadVertices(pathToData, graph, g);
 
             log.info("Loading Index");
             loadIndexes(graph);
 
-            log.info("Loading Vertices Properties");
-            bulkLoadProperties(pathToData, graph, g, ldbcIdToJanusGraphId);
-
-            log.info("Loading Edges");
-            bulkLoadEdges(pathToData, graph, g, ldbcIdToJanusGraphId);
-
             log.info("Reindex");
             reindex(graph);
+
+            log.info("Loading Vertices Properties");
+            bulkLoadProperties(pathToData, graph, g);
+
+            log.info("Loading Edges");
+            bulkLoadEdges(pathToData, graph, g);
 
             log.info("Closing Graph Traversal Source");
             closeGraph(g);
