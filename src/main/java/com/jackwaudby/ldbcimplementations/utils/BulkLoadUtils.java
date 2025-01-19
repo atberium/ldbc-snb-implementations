@@ -4,25 +4,17 @@ import lombok.NonNull;
 import lombok.experimental.UtilityClass;
 
 import java.io.File;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.Set;
 import java.util.stream.Stream;
 
 import static com.jackwaudby.ldbcimplementations.utils.JanusGraphUtils.getValidVertexFiles;
 import static com.jackwaudby.ldbcimplementations.utils.JanusGraphUtils.getValidVertexPropertiesFiles;
-import static java.time.ZoneOffset.UTC;
-import static java.time.format.DateTimeFormatter.ofPattern;
-import static java.util.Locale.US;
+import static java.lang.Long.parseLong;
 import static java.util.stream.Collectors.toSet;
 
 @UtilityClass
 public class BulkLoadUtils {
-    private static final DateTimeFormatter FORMATTER_DATE = ofPattern("yyyy-MM-dd", US)
-            .withZone(UTC);
-    private static final DateTimeFormatter FORMATTER_DATETIME = ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ", US);
     private static final String TAG_CLASS = "Tagclass";
     private static final String SUITABLE_FILE_SUFFIX = ".csv";
 
@@ -45,11 +37,11 @@ public class BulkLoadUtils {
     }
 
     public static Date formatDate(@NonNull String date) {
-        return Date.from(LocalDate.parse(date, FORMATTER_DATE).atStartOfDay().toInstant(UTC));
+        return new Date(parseLong(date));
     }
 
     public static Date formatDatetime(@NonNull String datetime) {
-        return Date.from(LocalDateTime.parse(datetime, FORMATTER_DATETIME).toInstant(UTC));
+        return new Date(parseLong(datetime));
     }
 
     public static String getLabel(@NonNull String[] cleanFileName) {
