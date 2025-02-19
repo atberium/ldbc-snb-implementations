@@ -1,40 +1,38 @@
 package com.jackwaudby.ldbcimplementations.queryhandlers;
 
 import com.jackwaudby.ldbcimplementations.JanusGraphDb;
-import com.jackwaudby.ldbcimplementations.QueryTestBed;
-import com.ldbc.driver.DbException;
-import com.ldbc.driver.OperationHandler;
-import com.ldbc.driver.ResultReporter;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcNoResult;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcShortQuery7MessageReplies;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcShortQuery7MessageRepliesResult;
-import org.apache.log4j.Logger;
-import org.json.JSONObject;
+import com.jackwaudby.ldbcimplementations.utils.GremlinResponseParsers;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.tinkerpop.gremlin.driver.Result;
+import org.ldbcouncil.snb.driver.DbException;
+import org.ldbcouncil.snb.driver.OperationHandler;
+import org.ldbcouncil.snb.driver.ResultReporter;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcShortQuery7MessageReplies;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcShortQuery7MessageRepliesResult;
 
-import java.util.ArrayList;
+import java.util.List;
 
 import static com.jackwaudby.ldbcimplementations.utils.GremlinResponseParsers.*;
 import static com.jackwaudby.ldbcimplementations.utils.ImplementationConfiguration.getTxnAttempts;
+import static java.lang.Boolean.parseBoolean;
+import static java.util.stream.Collectors.toList;
 
 /**
  * Given a Message, retrieve the (1-hop) Comments that reply to it.
  * In addition, return a boolean flag knows indicating if the author of the reply knows the author of the original message.
  * If author is same as original author, return false for knows flag.
  */
-public class LdbcShortQuery7MessageRepliesHandler implements OperationHandler<LdbcShortQuery7MessageReplies, JanusGraphDb.JanusGraphConnectionState> {
-
-    private static Logger LOGGER = Logger.getLogger(LdbcShortQuery7MessageRepliesHandler.class.getName());
-
-
+@Slf4j
+@SuppressWarnings("unused")
+public class LdbcShortQuery7MessageRepliesHandler extends GremlinHandler implements OperationHandler<LdbcShortQuery7MessageReplies, JanusGraphDb.JanusGraphConnectionState> {
     @Override
     public void executeOperation(LdbcShortQuery7MessageReplies operation, JanusGraphDb.JanusGraphConnectionState dbConnectionState, ResultReporter resultReporter) throws DbException {
 
-        long messageId = operation.messageId();
-        JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();   // janusgraph client
-        String queryString = "{\"gremlin\": \"" +                               // gremlin query string
-                "graph.tx().rollback();[];" +
+        final long messageId = operation.getMessageRepliesId();
+        final JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();
+        final String queryString = "graph.tx().rollback();[];" +
                 "try{" +
-                "originalMessage=g.V().has('Post','id',"+messageId+").fold().coalesce(unfold(),V().has('Comment','id',"+messageId+")).next();[];" +
+                "originalMessage=g.V().has('Post','id'," + messageId + ").fold().coalesce(unfold(),V().has('Comment','id'," + messageId + ")).next();[];" +
                 "originalAuthor=g.V(originalMessage).out('hasCreator').next();[];" +
                 "result=g.V(originalMessage).as('originalMessage').in('replyOf').as('comment')." +
                 "order().by(select('comment').by('creationDate'),desc).by(select('comment').by('id'),asc)." +
@@ -51,81 +49,35 @@ public class LdbcShortQuery7MessageRepliesHandler implements OperationHandler<Ld
                 "replyAuthorLastName:it.get().get('replyAuthor').get('lastName')," +
                 "replyAuthorKnowsOriginalMessageAuthor:it.get().get('knows')" +
                 "]};[];" +
-                "graph.tx().commit();[];"+
-                "} catch (Exception e) {"+
+                "graph.tx().commit();[];" +
+                "} catch (Exception e) {" +
                 "errorMessage =[e.toString()];[];" +
                 "result=[error:errorMessage];" +
                 "graph.tx().rollback();[];" +
                 "};" +
-                "result" +
-                "\"" +
-                "}";
+                "result";
 
-        int TX_ATTEMPTS = 0;                                                                 // init. transaction attempts
-        int TX_RETRIES = getTxnAttempts();
+        final List<Result> response = tryRequest(client, queryString, getTxnAttempts());
 
-        while (TX_ATTEMPTS < TX_RETRIES) {
-            LOGGER.info("Attempt " + (TX_ATTEMPTS + 1) + ": " + LdbcShortQuery7MessageRepliesHandler.class.getSimpleName());
-            String response = client.execute(queryString);                                            // execute query
-            ArrayList<JSONObject> results = gremlinResponseToResultArrayList(response);          // get result list
-            if (gremlinMapToHashMap(results.get(0)).containsKey("error")) {
-                LOGGER.error(getPropertyValue(gremlinMapToHashMap(results.get(0)).get("error")));
-                TX_ATTEMPTS = TX_ATTEMPTS + 1;
-            } else if (true) {
-                ArrayList<LdbcShortQuery7MessageRepliesResult> queryResults                   // init result list
-                    = new ArrayList<>();
-                LOGGER.info("B");
-
-                LdbcShortQuery7MessageRepliesResult queryResult                                    // create result object
-                        = new LdbcShortQuery7MessageRepliesResult(
-                        11111,
-                        "skd",
-                        112323,
-                        2222,
-                        "replyAuthorFirstName",
-                        "replyAuthorLastName",
-                        true
-                );
-                queryResults.add(queryResult);
-
-            }
-            else
-                {
-                    LOGGER.info("C");
-
-                    ArrayList<LdbcShortQuery7MessageRepliesResult> queryResults                   // init result list
-                        = new ArrayList<>();
-                for (JSONObject result: results
-                ) {
-                    long commentId = Long.parseLong(getPropertyValue(gremlinMapToHashMap(result).get("commentId")));
-                    String commentContent = getPropertyValue(gremlinMapToHashMap(result).get("commentContent"));
-                    long commentCreationDate = Long.parseLong(getPropertyValue(gremlinMapToHashMap(result).get("commentCreationDate")));
-                    long replyAuthorId = Long.parseLong(getPropertyValue(gremlinMapToHashMap(result).get("replyAuthorId")));
-                    String replyAuthorFirstName = getPropertyValue(gremlinMapToHashMap(result).get("replyAuthorFirstName"));
-                    String replyAuthorLastName = getPropertyValue(gremlinMapToHashMap(result).get("replyAuthorLastName"));
-                    boolean replyAuthorKnowsOriginalMessageAuthor = gremlinMapToHashMap(result).get("replyAuthorKnowsOriginalMessageAuthor").getJSONArray("@value").getBoolean(0);
-                    LdbcShortQuery7MessageRepliesResult queryResult                                    // create result object
-                            = new LdbcShortQuery7MessageRepliesResult(
-                            commentId,
-                            commentContent,
-                            commentCreationDate,
-                            replyAuthorId,
-                            replyAuthorFirstName,
-                            replyAuthorLastName,
-                            replyAuthorKnowsOriginalMessageAuthor
-                    );
-                    queryResults.add(queryResult);
-                }
-
-                LOGGER.info("Number of results: " + queryResults.size());
-
-                resultReporter.report(0, queryResults, operation);
-
-
-
-                break;
-            }
+        if (response == null) {
+            return;
         }
+
+        final List<LdbcShortQuery7MessageRepliesResult> queryResults = response.stream()
+                .map(GremlinResponseParsers::resultToMap)
+                .map(r -> new LdbcShortQuery7MessageRepliesResult(
+                        parseLongValue(r, "commentId"),
+                        parseStringValue(r, "commentContent"),
+                        parsePersonCommentCreationDate(r),
+                        parseLongValue(r, "replyAuthorId"),
+                        parseStringValue(r, "replyAuthorFirstName"),
+                        parseStringValue(r, "replyAuthorLastName"),
+                        parseBoolean(parsePropertyStringList(r, "replyAuthorKnowsOriginalMessageAuthor").get(0))
+                ))
+                .collect(toList());
+
+        log.info("Number of results: {}", queryResults.size());
+
+        resultReporter.report(0, queryResults, operation);
     }
 }
-

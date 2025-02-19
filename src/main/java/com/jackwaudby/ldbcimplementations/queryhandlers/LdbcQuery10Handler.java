@@ -1,16 +1,17 @@
 package com.jackwaudby.ldbcimplementations.queryhandlers;
 
 import com.jackwaudby.ldbcimplementations.JanusGraphDb;
-import com.ldbc.driver.DbException;
-import com.ldbc.driver.OperationHandler;
-import com.ldbc.driver.ResultReporter;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcQuery10;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcQuery10Result;
-import org.json.JSONObject;
+import com.jackwaudby.ldbcimplementations.utils.GremlinResponseParsers;
+import org.ldbcouncil.snb.driver.DbException;
+import org.ldbcouncil.snb.driver.OperationHandler;
+import org.ldbcouncil.snb.driver.ResultReporter;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcQuery10;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcQuery10Result;
 
-import java.util.ArrayList;
+import java.util.List;
 
 import static com.jackwaudby.ldbcimplementations.utils.GremlinResponseParsers.*;
+import static java.util.stream.Collectors.toList;
 
 /**
  * Given a start Person (rootPerson), find that Person’s friends of friends (person).
@@ -20,37 +21,27 @@ import static com.jackwaudby.ldbcimplementations.utils.GremlinResponseParsers.*;
  * - common = number of Posts created by person, such that the Post has a Tag that rootPerson is interested in
  * - uncommon = number of Posts created by person, such that the Post has no Tag that rootPerson is interested in
  * - commonInterestScore = common - uncommon
- *
+ * <p>
  * Return personId, personFirstName, personLastName, personGender, city person is located in (personCityName) and
  * commonInterestScore. Sorted by commonInterestScore (DESC) and personId (ASC). Limit 10
  */
-public class LdbcQuery10Handler implements OperationHandler<LdbcQuery10, JanusGraphDb.JanusGraphConnectionState> {
+public class LdbcQuery10Handler extends GremlinHandler implements OperationHandler<LdbcQuery10, JanusGraphDb.JanusGraphConnectionState> {
 
     @Override
     public void executeOperation(LdbcQuery10 operation, JanusGraphDb.JanusGraphConnectionState dbConnectionState, ResultReporter resultReporter) throws DbException {
-
-        // TODO: Add transaction logic to query string
-        // TODO: Add transaction retry logic to response
-
-        long personId = operation.personId();
-        long month = operation.month();
-        long nextMonth;
-        if (month != 12 ) {
-            nextMonth = month + 1;
-        } else {
-            nextMonth = 1;
-        }
-        long limit = operation.limit();
+        final long personId = operation.getPersonIdQ10();
+        final long month = operation.getMonth();
+        final long nextMonth = month != 12 ? month + 1 : 1;
+        final long limit = operation.getLimit();
 
 
-        JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();   // janusgraph client
+        final JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();
 
-        String queryString = "{\"gremlin\": \"" +                               // gremlin query string
-                "g.V().has('Person','id',"+personId+").sideEffect(out('hasInterest').store('tags'))." +
+        final String queryString = "g.V().has('Person','id'," + personId + ").sideEffect(out('hasInterest').store('tags'))." +
                 "repeat(both('knows').simplePath()).times(2).dedup()." +
-                "where(values('birthday').map{it.get().getMonth()}.is(eq("+month+"-1))." +
+                "where(values('birthday').map{it.get().getMonth()}.is(eq(" + month + "-1))." +
                 "and().values('birthday').map{it.get().getDate()}.is(gte(21))." +
-                "or().values('birthday').map{it.get().getMonth()}.is(eq("+nextMonth+"-1))." +
+                "or().values('birthday').map{it.get().getMonth()}.is(eq(" + nextMonth + "-1))." +
                 "and().values('birthday').map{it.get().getDate()}.is(lt(22)))." +
                 "local(union(__.in('hasCreator').hasLabel('Post').where(out('hasTag').dedup()." +
                 "where(within('tags')).count().is(gt(0))).count()," +
@@ -64,35 +55,20 @@ public class LdbcQuery10Handler implements OperationHandler<LdbcQuery10, JanusGr
                 "lastName:[it.get().getAt(4)], " +
                 "gender:[it.get().getAt(5)], " +
                 "city:[it.get().getAt(6)],]}." +
-                "order().by(select('commonInterestScore').unfold(),desc).by(select('id').unfold(),asc).limit("+limit+")" +
-                "\"" +
-                "}";
-        String response = client.execute(queryString);                          // execute query
-        ArrayList<JSONObject> resultList = gremlinResponseToResultArrayList(response);
-        ArrayList<LdbcQuery10Result> endResult                                   // init result list
-                = new ArrayList<>();
-        for (JSONObject result: resultList) {
-            Long id = Long.parseLong(getPropertyValue(gremlinMapToHashMap(result).get("id")));
-            LdbcQuery10Result res                                                // create result object
-                    = new LdbcQuery10Result(
-                            id,
-                    getPropertyValue(gremlinMapToHashMap(result).get("firstName")),
-                    getPropertyValue(gremlinMapToHashMap(result).get("lastName")),
-                    Integer.parseInt(getPropertyValue(gremlinMapToHashMap(result).get("commonInterestScore"))),
-                    getPropertyValue(gremlinMapToHashMap(result).get("gender")),
-                    getPropertyValue(gremlinMapToHashMap(result).get("city"))
-                    );
-            endResult.add(res);
-        }
+                "order().by(select('commonInterestScore').unfold(),desc).by(select('id').unfold(),asc).limit(" + limit + ")";
+
+        final List<LdbcQuery10Result> endResult = request(client, queryString).stream()
+                .map(GremlinResponseParsers::resultToMap)
+                .map(r -> new LdbcQuery10Result(
+                        parseId(r),
+                        parseFirstName(r),
+                        parseLastName(r),
+                        parseIntValue(r, "commonInterestScore"),
+                        parsePersonGender(r),
+                        parseStringValue(r, "city")
+                ))
+                .collect(toList());
+
         resultReporter.report(0, endResult, operation);
     }
 }
-
-
-// TODO: set_01
-// TODO: set_02
-
-
-
-
-

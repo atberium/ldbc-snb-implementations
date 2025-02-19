@@ -1,31 +1,31 @@
 package com.jackwaudby.ldbcimplementations.queryhandlers;
 
 import com.jackwaudby.ldbcimplementations.JanusGraphDb;
-import com.ldbc.driver.DbException;
-import com.ldbc.driver.OperationHandler;
-import com.ldbc.driver.ResultReporter;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcNoResult;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcUpdate5AddForumMembership;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcUpdate8AddFriendship;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.tinkerpop.gremlin.driver.Result;
+import org.ldbcouncil.snb.driver.DbException;
+import org.ldbcouncil.snb.driver.OperationHandler;
+import org.ldbcouncil.snb.driver.ResultReporter;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcNoResult;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcUpdate5AddForumMembership;
 
-import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-import static com.jackwaudby.ldbcimplementations.utils.HttpResponseToResultMap.httpResponseToResultMap;
+import static com.jackwaudby.ldbcimplementations.utils.GremlinResponseParsers.resultToMap;
 
-public class LdbcUpdate5AddForumMembershipHandler implements OperationHandler<LdbcUpdate5AddForumMembership, JanusGraphDb.JanusGraphConnectionState> {
+@Slf4j
+public class LdbcUpdate5AddForumMembershipHandler extends GremlinHandler implements OperationHandler<LdbcUpdate5AddForumMembership, JanusGraphDb.JanusGraphConnectionState> {
+
+    private static final int TX_RETRIES = 5;
 
     @Override
     public void executeOperation(LdbcUpdate5AddForumMembership operation, JanusGraphDb.JanusGraphConnectionState dbConnectionState, ResultReporter resultReporter) throws DbException {
-
-        long personId = operation.personId();
-        long forumId = operation.forumId();
-        long joinDate = operation.joinDate().getTime();
-
-        // get JanusGraph client
-        JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();
-
-        // gremlin query string
-        String queryString = "{\"gremlin\": \"try {" +
+        final long personId = operation.getPersonId();
+        final long forumId = operation.getForumId();
+        final long joinDate = operation.getJoinDate().getTime();
+        final JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();
+        final String queryString = "try {" +
                 "v = g.V().has('Person','id'," +
                 personId +
                 ").next();[];" +
@@ -42,27 +42,25 @@ public class LdbcUpdate5AddForumMembershipHandler implements OperationHandler<Ld
                 "hm=[query_error:errorMessage];[];" +
                 "graph.tx().rollback();[];" +
                 "};" +
-                "hm;\"" +
-                "}";
+                "hm;";
 
-        int TX_ATTEMPTS = 0;
-        int TX_RETRIES = 5;
-        while (TX_ATTEMPTS < TX_RETRIES) {
-            System.out.println("Attempt " + (TX_ATTEMPTS + 1));
-            String response = client.execute(queryString);                                // get response as string
-            HashMap<String, String> result = httpResponseToResultMap(response);      // convert to result map
+        int attempts = 0;
+        while (attempts < TX_RETRIES) {
+            log.info("Attempt {}", attempts + 1);
+            final List<Result> response = request(client, queryString);
+            final Map<String, Object> result = resultToMap(response.get(0));
             if (result.containsKey("query_error")) {
-                TX_ATTEMPTS = TX_ATTEMPTS + 1;
-                System.out.println("Query Error: " + result.get("query_error"));
+                attempts = attempts + 1;
+                log.error("Query Error: {}", result.get("query_error"));
             } else if (result.containsKey("http_error")) {
-                TX_ATTEMPTS = TX_ATTEMPTS + 1;
-                System.out.println("Gremlin Server Error: " + result.get("http_error"));
+                attempts = attempts + 1;
+                log.error("Gremlin Server Error: {}", result.get("http_error"));
             } else {
-                System.out.println(result.get("query_outcome"));
+                log.info(result.get("query_outcome").toString());
                 break;
             }
         }
-        // pass result to driver
+
         resultReporter.report(0, LdbcNoResult.INSTANCE, operation);
 
     }

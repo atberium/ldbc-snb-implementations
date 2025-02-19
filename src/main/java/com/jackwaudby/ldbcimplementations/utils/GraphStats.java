@@ -1,36 +1,34 @@
 package com.jackwaudby.ldbcimplementations.utils;
 
-import org.apache.log4j.Logger;
+import lombok.experimental.UtilityClass;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversalSource;
 import org.janusgraph.core.JanusGraph;
 import org.janusgraph.core.JanusGraphFactory;
 
+import static com.jackwaudby.ldbcimplementations.utils.CloseGraph.closeGraph;
+import static com.jackwaudby.ldbcimplementations.utils.JanusGraphUtils.getPropertiesPath;
+
 /**
  * This script provides basic graph statistics.
  */
+@Slf4j
+@UtilityClass
 public class GraphStats {
-
-    private static final Logger LOGGER = Logger.getLogger(GraphStats.class);
-
     public static void main(String[] args) {
-
-        JanusGraph graph = JanusGraphFactory.open("/Users/jackwaudby/janusgraph-0.4.0-hadoop2/conf/janusgraph-berkeleyje.properties");
-        GraphTraversalSource g = graph.traversal(); // create traversal source
+        final JanusGraph graph = JanusGraphFactory.open(getPropertiesPath());
+        final GraphTraversalSource g = graph.traversal();
         elementCount(g);
-        CloseGraph.closeGraph(g);
+        closeGraph(g);
         graph.close();
-
     }
 
-    public static void elementCount(GraphTraversalSource g){
+    public static void elementCount(GraphTraversalSource g) {
+        final long vertices = g.V().count().next();
+        final long edges = g.E().count().next();
 
-
-        Long vertices = g.V().count().next();
-        Long edges = g.E().count().next();
-
-        LOGGER.info("Total Vertices: "+ vertices);
-        LOGGER.info("Total Edges: "+ edges);
-
+        log.info("Total Vertices: {}", vertices);
+        log.info("Total Edges: {}", edges);
 
 
     }

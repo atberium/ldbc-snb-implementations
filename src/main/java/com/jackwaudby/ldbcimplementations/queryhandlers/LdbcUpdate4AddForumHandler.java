@@ -1,38 +1,42 @@
 package com.jackwaudby.ldbcimplementations.queryhandlers;
 
 import com.jackwaudby.ldbcimplementations.JanusGraphDb;
-import com.ldbc.driver.DbException;
-import com.ldbc.driver.OperationHandler;
-import com.ldbc.driver.ResultReporter;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcNoResult;
-import com.ldbc.driver.workloads.ldbc.snb.interactive.LdbcUpdate4AddForum;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.tinkerpop.gremlin.driver.Result;
+import org.ldbcouncil.snb.driver.DbException;
+import org.ldbcouncil.snb.driver.OperationHandler;
+import org.ldbcouncil.snb.driver.ResultReporter;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcNoResult;
+import org.ldbcouncil.snb.driver.workloads.interactive.LdbcUpdate4AddForum;
 
-import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-import static com.jackwaudby.ldbcimplementations.utils.HttpResponseToResultMap.httpResponseToResultMap;
+import static com.jackwaudby.ldbcimplementations.utils.GremlinResponseParsers.resultToMap;
 
-public class LdbcUpdate4AddForumHandler implements OperationHandler<LdbcUpdate4AddForum, JanusGraphDb.JanusGraphConnectionState> {
+@Slf4j
+public class LdbcUpdate4AddForumHandler extends GremlinHandler implements OperationHandler<LdbcUpdate4AddForum, JanusGraphDb.JanusGraphConnectionState> {
+
+    private static final int TX_RETRIES = 5;
 
     @Override
     public void executeOperation(LdbcUpdate4AddForum operation, JanusGraphDb.JanusGraphConnectionState dbConnectionState, ResultReporter resultReporter) throws DbException {
 
-        long forumId = operation.forumId();
-        String forumTitle = operation.forumTitle();
-        long forumCreationDate = operation.creationDate().getTime();
-        long moderatorId = operation.moderatorPersonId();
-        List<Long> tagIds = operation.tagIds();
+        final long forumId = operation.getForumId();
+        final String forumTitle = operation.getForumTitle();
+        final long forumCreationDate = operation.getCreationDate().getTime();
+        final long moderatorId = operation.getModeratorPersonId();
+        final List<Long> tagIds = operation.getTagIds();
 
-        // get JanusGraph client
-        JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();
-        // gremlin query string
-        String queryString = "{\"gremlin\": \"try {" +
+        final JanusGraphDb.JanusGraphClient client = dbConnectionState.getClient();
+
+        final String queryString = "try {" +
                 "p = g.addV('Forum')" +
                 ".property('id'," + forumId + ")" +
                 ".property('title','" + forumTitle + "')" +
-                ".property('creationDate','" + forumCreationDate  + "').next();[];" +
-                "g.V().has('Person', 'id',"+ moderatorId +").as('person').V(p).addE('hasModerator').to('person').next();[];" +
-                "tagid=" + tagIds.toString() + ";[];"+
+                ".property('creationDate','" + forumCreationDate + "').next();[];" +
+                "g.V().has('Person', 'id'," + moderatorId + ").as('person').V(p).addE('hasModerator').to('person').next();[];" +
+                "tagid=" + tagIds.toString() + ";[];" +
                 "for (item in tagid) { " +
                 "g.V().has('Tag', 'id', item).as('tag').V(p).addE('hasTag').to('tag').next();[];" +
                 "};" +
@@ -44,28 +48,26 @@ public class LdbcUpdate4AddForumHandler implements OperationHandler<LdbcUpdate4A
                 "hm=[query_error:errorMessage];[];" +
                 "graph.tx().rollback();[];" +
                 "};" +
-                "hm;\"" +
-                "}";
+                "hm;";
 
 
-        int TX_ATTEMPTS = 0;
-        int TX_RETRIES = 5;
-        while (TX_ATTEMPTS < TX_RETRIES) {
-            System.out.println("Attempt " + (TX_ATTEMPTS + 1));
-            String response = client.execute(queryString);                              // get response as string
-            HashMap<String, String> result = httpResponseToResultMap(response);         // convert to result map
+        int attempts = 0;
+        while (attempts < TX_RETRIES) {
+            log.info("Attempt {}", attempts + 1);
+            final List<Result> response = request(client, queryString);
+            final Map<String, Object> result = resultToMap(response.get(0));
             if (result.containsKey("query_error")) {
-                TX_ATTEMPTS = TX_ATTEMPTS + 1;
-                System.out.println("Query Error: " + result.get("query_error"));
+                attempts = attempts + 1;
+                log.error("Query Error: {}", result.get("query_error"));
             } else if (result.containsKey("http_error")) {
-                TX_ATTEMPTS = TX_ATTEMPTS + 1;
-                System.out.println("Gremlin Server Error: " + result.get("http_error"));
+                attempts = attempts + 1;
+                log.error("Gremlin Server Error: {}", result.get("http_error"));
             } else {
-                System.out.println(result.get("query_outcome"));
+                log.info(result.get("query_outcome").toString());
                 break;
             }
         }
-        resultReporter.report(0, LdbcNoResult.INSTANCE, operation);          // pass result to driver
+        resultReporter.report(0, LdbcNoResult.INSTANCE, operation);
 
 
     }

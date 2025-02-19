@@ -1,4 +1,4 @@
-## JanusGraph Overview ##
+# JanusGraph Overview
 
 JanusGraph is a graph layer that is reliant on pluggable, external systems to provide persistent storage and indexing;
 Apache Cassandra, Apache HBase and Oracle Berkeley DB JE are supported as storage backends.
@@ -6,9 +6,9 @@ JanusGraph itself is a set a Java classes that need to be invoked by a calling p
 versions of the Gremlin Console and Gremlin Server which can play this role.
 
 The purpose of this implementation was to provide initial insight into the cost of _serializability_ in graph databases.
- JanusGraph inherits the consistency semantics of the chosen storage backend.
- Cassandra and HBase do not provide ACID transactions, hence the storage backend used was BerkeleyDB;
- the caveat is BerkeleyDB is non-distributed, i.e. it does not support horizontal partitioning.
+JanusGraph inherits the consistency semantics of the chosen storage backend.
+Cassandra and HBase do not provide ACID transactions, hence the storage backend used was BerkeleyDB;
+the caveat is BerkeleyDB is non-distributed, i.e. it does not support horizontal partitioning.
 
 JanusGraph can be hosted in TinkerPop's Gremlin Server, exposing the graph as endpoint from which clients can connect.
 Gremlin Server allows clients to connect via a WebSockets connection and/or a HTTP connection.
@@ -34,10 +34,12 @@ Permanent failures can be caused by complete connection loss, hardware failure, 
 acquired a conflicting lock or a concurrent transaction has modified a value that has been read. Depending on the
 transaction semantics one can recover from a lock contention failure by rerunning the entire transaction.
 
-A good strategy is to rollback a transaction at the start of a request and commit or roll back at the end of the request,
+A good strategy is to rollback a transaction at the start of a request and commit or roll back at the end of the
+request,
 to prevent a transactional leak between requests.
 
 References:
+
 + [JanusGraph Documentation](https://docs.janusgraph.org/basics/transactions/)
 + [TinkerPop Documentation](http://tinkerpop.apache.org/docs/current/reference/#transactions)
 
